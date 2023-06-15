@@ -142,10 +142,6 @@ public:
     {
       path = path / "{zoom}" / "{x}" / "{y}.jpg";
     }
-    if (!std::filesystem::exists(path))
-    {
-      std::filesystem::create_directories(path);
-    }
     m_path = path;
   }
 
