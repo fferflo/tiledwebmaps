@@ -94,3 +94,16 @@ Some examples:
 ## Notes
 
 - The [GIL](https://en.wikipedia.org/wiki/Global_interpreter_lock) is released for all operations, such that multiple calls can be made concurrently.
+
+## Paper
+If you find this library useful for your research, please consider citing: 
+```
+@InProceedings{Fervers_2023_CVPR,
+    author    = {Fervers, Florian and Bullinger, Sebastian and Bodensteiner, Christoph and Arens, Michael and Stiefelhagen, Rainer},
+    title     = {Uncertainty-Aware Vision-Based Metric Cross-View Geolocalization},
+    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    month     = {June},
+    year      = {2023},
+    pages     = {21621-21631}
+}
+```
