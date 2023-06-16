@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 #include <tiledwebmaps/tiledwebmaps.h>
 #include <xtensor-python/pytensor.hpp>
+#include <filesystem>
 
 namespace py = pybind11;
 
@@ -128,13 +129,56 @@ PYBIND11_MODULE(backend, m)
   ;
 
   py::class_<tiledwebmaps::Http, std::shared_ptr<tiledwebmaps::Http>, tiledwebmaps::TileLoader>(m, "Http")
-    .def(py::init([](std::string url, tiledwebmaps::Layout layout, size_t retries, float wait_after_error, bool verify_ssl, std::optional<std::string> capath, std::map<std::string, std::string> header, bool allow_multithreading){
-        if (!capath)
+    .def(py::init([](std::string url, tiledwebmaps::Layout layout, size_t retries, float wait_after_error, bool verify_ssl, std::optional<std::string> capath, std::optional<std::string> cafile, std::map<std::string, std::string> header, bool allow_multithreading){
+        if (!capath && !cafile)
         {
           auto ssl = py::module::import("ssl");
-          capath = ssl.attr("get_default_verify_paths")().attr("capath").cast<std::string>();
+          auto default_verify_paths = ssl.attr("get_default_verify_paths")();
+          std::vector<std::string> capaths;
+          auto capath_py = default_verify_paths.attr("capath");
+          if (!capath_py.is_none())
+          {
+            capaths.push_back(capath_py.cast<std::string>());
+          }
+          auto openssl_capath_py = default_verify_paths.attr("openssl_capath");
+          if (!openssl_capath_py.is_none())
+          {
+            capaths.push_back(openssl_capath_py.cast<std::string>());
+          }
+          for (auto& capath2 : capaths)
+          {
+            if (std::filesystem::exists(capath2))
+            {
+              capath = capath2;
+              break;
+            }
+          }
         }
-        return tiledwebmaps::Http(url, layout, retries, wait_after_error, verify_ssl, capath, header, allow_multithreading);
+        if (!capath && !cafile)
+        {
+          auto ssl = py::module::import("ssl");
+          auto default_verify_paths = ssl.attr("get_default_verify_paths")();
+          std::vector<std::string> cafiles;
+          auto cafile_py = default_verify_paths.attr("cafile");
+          if (!cafile_py.is_none())
+          {
+            cafiles.push_back(cafile_py.cast<std::string>());
+          }
+          auto openssl_cafile_py = default_verify_paths.attr("openssl_cafile");
+          if (!openssl_cafile_py.is_none())
+          {
+            cafiles.push_back(openssl_cafile_py.cast<std::string>());
+          }
+          for (auto& cafile2 : cafiles)
+          {
+            if (std::filesystem::exists(cafile2))
+            {
+              cafile = cafile2;
+              break;
+            }
+          }
+        }
+        return tiledwebmaps::Http(url, layout, retries, wait_after_error, verify_ssl, capath, cafile, header, allow_multithreading);
       }),
       py::arg("url"),
       py::arg("layout") = tiledwebmaps::Layout::XYZ(proj_context),
@@ -142,6 +186,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("wait_after_error") = 1.5,
       py::arg("verify_ssl") = true,
       py::arg("capath") = std::optional<std::string>(),
+      py::arg("cafile") = std::optional<std::string>(),
       py::arg("header") = std::map<std::string, std::string>(),
       py::arg("allow_multithreading") = false,
       "Create an Http tileloader that loads images from the given url.\n"
@@ -180,6 +225,7 @@ PYBIND11_MODULE(backend, m)
       "    wait_after_error: Seconds to wait before retrying the http request. Defaults to 1.5.\n"
       "    verify_ssl: Whether to verify the ssl host/peer. Defaults to True.\n"
       "    capath: Set the capath of the curl request if given. Defaults to None.\n"
+      "    cafile: Set the cafile of the curl request if given. Defaults to None.\n"
       "    header: Header of the curl request. Defaults to {}.\n"
       "    allow_multithreading: True if multiple threads are allowed to use this tileloader concurrently. Defaults to False.\n"
       "\n"

@@ -34,13 +34,14 @@ public:
     }
   };
 
-  Http(std::string url, const Layout& layout, size_t retries = 10, float wait_after_error = 1.5, bool verify_ssl = true, std::optional<std::filesystem::path> capath = std::optional<std::filesystem::path>(), std::map<std::string, std::string> header = std::map<std::string, std::string>(), bool allow_multithreading = false)
+  Http(std::string url, const Layout& layout, size_t retries = 10, float wait_after_error = 1.5, bool verify_ssl = true, std::optional<std::filesystem::path> capath = std::optional<std::filesystem::path>(), std::optional<std::filesystem::path> cafile = std::optional<std::filesystem::path>(), std::map<std::string, std::string> header = std::map<std::string, std::string>(), bool allow_multithreading = false)
     : TileLoader(layout)
     , m_url(url)
     , m_retries(retries)
     , m_wait_after_error(wait_after_error)
     , m_verify_ssl(verify_ssl)
     , m_capath(capath)
+    , m_cafile(cafile)
     , m_header(header)
     , m_allow_multithreading(allow_multithreading)
     , m_mutex()
@@ -90,6 +91,10 @@ public:
         {
           request.add<CURLOPT_CAPATH>(m_capath->string().c_str());
         }
+        else if (m_cafile)
+        {
+          request.add<CURLOPT_CAINFO>(m_cafile->string().c_str());
+        }
 
         request.perform();
 
@@ -137,6 +142,7 @@ private:
   float m_wait_after_error;
   bool m_verify_ssl;
   std::optional<std::filesystem::path> m_capath;
+  std::optional<std::filesystem::path> m_cafile;
   std::map<std::string, std::string> m_header;
   bool m_allow_multithreading;
   Mutex m_mutex;
