@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![PyPI version shields.io](https://img.shields.io/pypi/v/tiledwebmaps.svg)](https://pypi.python.org/pypi/tiledwebmaps/)
 
-> A small library for retrieving map images from a [tile provider](https://en.wikipedia.org/wiki/Tiled_web_map) with arbitrary resolution, location and bearing.
+> A lightweight library for retrieving map images from a [tile provider](https://en.wikipedia.org/wiki/Tiled_web_map) with arbitrary resolution, location and bearing.
 
 ## Install
 
@@ -27,6 +27,9 @@ image = tileloader.load(
     shape=(512, 512),
     zoom=20, # Zoom level of the fetched tiles
 )
+
+import imageio
+imageio.imwrite("map.jpg", image)
 ```
 
 The tileloader fetches multiple tiles from [MassGIS](https://www.mass.gov/orgs/massgis-bureau-of-geographic-information) and combines and transforms them to the correct location, bearing and resolution. This creates the following image ([same location in Bing Maps](https://www.bing.com/maps/?cp=42.360995%7E-71.051683&lvl=18.5&style=a)):
@@ -40,17 +43,17 @@ The tileloader fetches multiple tiles from [MassGIS](https://www.mass.gov/orgs/m
 Tiles can be saved on disk to avoid downloading the same tile multiple times:
 
 ```python
-tileloader1 = twm.Http("https://tiles.arcgis.com/tiles/hGdibHYSPO59RG1h/arcgis/rest" \
+http_tileloader = twm.Http("https://tiles.arcgis.com/tiles/hGdibHYSPO59RG1h/arcgis/rest" \
                       "/services/orthos2021/MapServer/tile/{zoom}/{y}/{x}")
-tileloader2 = twm.DiskCached(tileloader1, "/path/to/map/folder")
+cached_tileloader = twm.DiskCached(http_tileloader, "/path/to/map/folder")
 ```
 
-`tileloader2` will check if a tile is already present on disk before calling `tileloader1`.
+`cached_tileloader` will check if a tile is already present on disk before calling `http_tileloader`.
 
 Tiles can also be cached in memory using an [LRU cache](https://en.wikipedia.org/wiki/Cache_replacement_policies#LRU):
 
 ```python
-tileloader2 = twm.LRUCached(tileloader1, size=100)
+cached_tileloader = twm.LRUCached(http_tileloader, size=100)
 ```
 
 ## Finding tile providers
