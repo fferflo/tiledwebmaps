@@ -55,7 +55,7 @@ tileloader2 = twm.LRUCached(tileloader1, size=100)
 
 ## Finding tile providers
 
-:warning: **Some tile providers like Google Maps and Bing Maps charge payment for tile requests. We are not responsible for charges incured when using this library!**
+:warning: **Some tile providers like Google Maps, Bing Maps and MapBox charge payment for tile requests. We are not responsible for charges incured when using this library!**
 
 :warning: **This library does not enforce usage limits. Make to sure to stay within the allowed quota for each tile provider!**
 
@@ -86,6 +86,13 @@ Some examples:
     - Accessing Bing Maps tiles requires fetching the correct url from their REST service first as outlined [here](https://learn.microsoft.com/en-us/bingmaps/rest-services/directly-accessing-the-bing-maps-tiles). We provide the utility function `twm.bingmaps` for this purpose.
     - This requires an API key as outlined [here](https://learn.microsoft.com/en-us/bingmaps/getting-started/bing-maps-dev-center-help/getting-a-bing-maps-key). Bing Maps provides API keys for educational/ non-profit use with a daily free quota. See https://www.bingmapsportal.com/Application for more information.
     - Make sure to follow Bing Map's [Terms of Use](https://www.microsoft.com/en-us/maps/product) and [usage limits](https://www.microsoft.com/en-us/maps/product#section-pst-limited-license).
+- **MapBox** Raster Tiles API:
+    ```python
+    tileloader = twm.Http("https://api.mapbox.com/v4/mapbox.satellite/{zoom}/{x}/{y}.png?access_token=YOUR_MAPBOX_TOKEN")
+    ```
+    - This requires an API token as outlined [here](https://docs.mapbox.com/help/getting-started/access-tokens/). MapBox has a daily free use quota as outlined [here](https://www.mapbox.com/pricing/#tile).
+    - Make sure to follow MapBox's [Terms of Service](https://www.mapbox.com/legal/tos) and [restrictions and limits](https://docs.mapbox.com/api/maps/raster-tiles/#raster-tiles-api-restrictions-and-limits).
+
 - For map tiles already stored on disk, use:
     ```python
     tileloader = twm.Disk("/path/{zoom}/{x}/{y}.jpg")
