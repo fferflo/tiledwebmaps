@@ -47,6 +47,10 @@ cv::Mat safe_imread(std::filesystem::path path)
   }
   std::ifstream file(path.string(), std::ios::binary | std::ios::ate);
   std::streamsize size = file.tellg();
+  if (size == 0)
+  {
+    throw ImreadException(std::string("File is empty: ") + path.string());
+  }
   file.seekg(0, std::ios::beg);
 
   std::vector<uint8_t> buffer(size);
