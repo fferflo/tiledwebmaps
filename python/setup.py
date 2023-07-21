@@ -13,7 +13,7 @@ setup(
     license="MIT",
     install_requires=[
         "numpy",
-        "cosy1",
+        "cosy1>=0.1.2",
         "pyyaml",
         "requests",
     ],
