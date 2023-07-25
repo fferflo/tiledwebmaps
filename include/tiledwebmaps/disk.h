@@ -14,6 +14,7 @@
 #include <chrono>
 #include <thread>
 #include <fstream>
+#include <shared_mutex>
 
 namespace tiledwebmaps {
 
@@ -138,6 +139,24 @@ public:
 class Disk : public Cache
 {
 public:
+  struct Mutex
+  {
+    std::shared_mutex mutex;
+
+    Mutex()
+    {
+    }
+
+    Mutex(const Mutex& other)
+    {
+    }
+
+    Mutex& operator=(const Mutex& other)
+    {
+      return *this;
+    }
+  };
+
   Disk(std::filesystem::path path, const Layout& layout, float wait_after_last_modified = 1.0)
     : Cache(layout)
     , m_wait_after_last_modified(wait_after_last_modified)
@@ -161,6 +180,8 @@ public:
 
   Tile load(xti::vec2s tile, size_t zoom)
   {
+    std::shared_lock<std::shared_mutex> lock(m_mutex.mutex);
+
     std::filesystem::path path = get_path(tile, zoom);
     if (!std::filesystem::exists(path))
     {
@@ -190,6 +211,8 @@ public:
 
   void save(const Tile& image, xti::vec2s tile, size_t zoom)
   {
+    std::lock_guard<std::shared_mutex> lock(m_mutex.mutex);
+
     std::filesystem::path path = get_path(tile, zoom);
 
     std::filesystem::path parent_path = path.parent_path();
@@ -213,6 +236,7 @@ public:
 private:
   std::filesystem::path m_path;
   float m_wait_after_last_modified;
+  Mutex m_mutex;
 };
 
 } // end of ns tiledwebmaps
