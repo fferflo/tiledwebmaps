@@ -100,6 +100,11 @@ public:
 
         // Convert data to image
         std::string data = body_stream.str();
+        if (data.length() == 0)
+        {
+          last_ex = LoadTileException("Failed to download image from url " + url + ". Received no data.");
+          continue;
+        }
         cv::Mat data_cv(1, data.length(), xti::opencv::pixeltype<uint8_t>::get(1), data.data());
         if (data_cv.data == NULL)
         {
