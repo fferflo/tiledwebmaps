@@ -12,28 +12,27 @@ namespace tiledwebmaps {
 
 static const cosy::geo::CompassAxes pixel_axes("south", "east");
 
-// TODO: all crs should be epsg:3857?
 class Layout
 {
 public:
   // https://gist.github.com/tmcw/4954720
-  static Layout XYZ(std::shared_ptr<cosy::proj::Context> proj_context, xti::vec2s tile_shape = xti::vec2s({256, 256}))
+  static Layout XYZ(std::shared_ptr<cosy::proj::Context> proj_context)
   {
-    return Layout(std::make_shared<cosy::proj::CRS>(proj_context, "epsg:3857"), tile_shape, cosy::geo::CompassAxes("east", "south"), true);
+    return Layout(std::make_shared<cosy::proj::CRS>(proj_context, "epsg:3857"), xti::vec2s({256, 256}), cosy::geo::CompassAxes("east", "south"));
   }
 
   // https://gist.github.com/tmcw/4954720
-  static Layout TMS(std::shared_ptr<cosy::proj::Context> proj_context, xti::vec2s tile_shape = xti::vec2s({256, 256}))
+  static Layout TMS(std::shared_ptr<cosy::proj::Context> proj_context)
   {
-    return Layout(std::make_shared<cosy::proj::CRS>(proj_context, "epsg:3857"), tile_shape, cosy::geo::CompassAxes("east", "north"), true);
+    return Layout(std::make_shared<cosy::proj::CRS>(proj_context, "epsg:3857"), xti::vec2s({256, 256}), cosy::geo::CompassAxes("east", "north"));
   }
 
-  Layout(std::shared_ptr<cosy::proj::CRS> crs, xti::vec2s tile_shape, cosy::geo::CompassAxes tile_axes, bool use_only_first_bound_axis = true)
-    : Layout(crs, std::make_shared<cosy::proj::Transformer>(std::make_shared<cosy::proj::CRS>(crs->get_context(), "epsg:4326"), crs), tile_shape, tile_axes, use_only_first_bound_axis)
+  Layout(std::shared_ptr<cosy::proj::CRS> crs, xti::vec2s tile_shape, cosy::geo::CompassAxes tile_axes, std::optional<std::pair<xti::vec2d, xti::vec2d>> bounds_crs = std::optional<std::pair<xti::vec2d, xti::vec2d>>(), double zoom0_scale = 0.0, bool use_only_first_bound_axis = true)
+    : Layout(crs, std::make_shared<cosy::proj::Transformer>(std::make_shared<cosy::proj::CRS>(crs->get_context(), "epsg:4326"), crs), tile_shape, tile_axes, bounds_crs, zoom0_scale, use_only_first_bound_axis)
   {
   }
 
-  Layout(std::shared_ptr<cosy::proj::CRS> crs, std::shared_ptr<cosy::proj::Transformer> epsg4326_to_crs, xti::vec2s tile_shape, cosy::geo::CompassAxes tile_axes, bool use_only_first_bound_axis = true)
+  Layout(std::shared_ptr<cosy::proj::CRS> crs, std::shared_ptr<cosy::proj::Transformer> epsg4326_to_crs, xti::vec2s tile_shape, cosy::geo::CompassAxes tile_axes, std::optional<std::pair<xti::vec2d, xti::vec2d>> bounds_crs = std::optional<std::pair<xti::vec2d, xti::vec2d>>(), double zoom0_scale = 0.0, bool use_only_first_bound_axis = true)
     : m_crs(crs)
     , m_epsg4326_to_crs(std::move(epsg4326_to_crs))
     , m_tile_shape(tile_shape)
@@ -41,17 +40,40 @@ public:
     , m_crs_to_tile_axes(crs->get_axes(), tile_axes)
     , m_tile_to_pixel_axes(m_tile_axes, pixel_axes)
   {
-    auto area_of_use = m_crs->get_area_of_use();
-    xti::vec2d lower_bound = m_epsg4326_to_crs->transform(area_of_use.lower_latlon);
-    xti::vec2d upper_bound = m_epsg4326_to_crs->transform(area_of_use.upper_latlon);
-    if (use_only_first_bound_axis)
+    if (bounds_crs)
     {
-      lower_bound(1) = lower_bound(0);
-      upper_bound(1) = upper_bound(0);
+      m_origin_crs = bounds_crs->first;
+      m_size_crs = bounds_crs->second - bounds_crs->first;
+    }
+    else
+    {
+      auto area_of_use = m_crs->get_area_of_use();
+      m_origin_crs = m_epsg4326_to_crs->transform(area_of_use.lower_latlon);
+      m_size_crs = m_epsg4326_to_crs->transform(area_of_use.upper_latlon) - m_origin_crs;
     }
 
-    m_lower_bound = lower_bound;
-    m_diff_bound = upper_bound - lower_bound;
+    if (use_only_first_bound_axis)
+    {
+      m_origin_crs(1) = m_origin_crs(0);
+      m_size_crs(1) = m_size_crs(0);
+    }
+
+    m_zoom0_scale = (zoom0_scale <= 0.0) ? (1.0 / m_size_crs(0)) : zoom0_scale; // size of level0 in CRS units
+
+    cosy::NamedAxesTransformation<double, 2> crs_to_tile_axes(crs->get_axes(), m_tile_axes);
+    cosy::NamedAxesTransformation<double, 2> tile_to_pixel_axes(m_tile_axes, pixel_axes);
+
+    m_tile_to_crs = cosy::ScaledRigid<double, 2>(
+      crs_to_tile_axes.inverse().get_rotation(),
+      m_origin_crs + xt::maximum(-crs_to_tile_axes.transform(m_size_crs), 0.0),
+      1.0
+    );
+
+    m_tile_to_pixel = cosy::ScaledRigid<double, 2>(
+      tile_to_pixel_axes.get_rotation(),
+      xti::vec2d({0.0, 0.0}),// xt::maximum(-(scale * tile_to_pixel_axes.transform(xt::abs(crs_to_tile_axes.transform(m_size_crs))) - 1), 0.0),
+      tile_shape(0)
+    );
   }
 
   const std::shared_ptr<cosy::proj::Transformer>& get_epsg4326_to_crs() const
@@ -69,68 +91,97 @@ public:
     return m_epsg4326_to_crs->transform_inverse(coords_crs);
   }
 
+  xti::vec2d crs_to_tile(xti::vec2d coords_crs, double scale) const
+  {
+    return tile_to_crs(scale).transform_inverse(coords_crs);
+  }
+ 
   xti::vec2d crs_to_tile(xti::vec2d coords_crs, size_t zoom) const
   {
-    xti::vec2d coords_tile = coords_crs;
-    coords_tile = (coords_crs - m_lower_bound) / m_diff_bound;
-    coords_tile = m_crs_to_tile_axes.transform(coords_tile);
-    xt::filter(coords_tile, coords_tile < 0) += 1;
-    coords_tile = coords_tile * (1 << zoom);
-    return coords_tile;
+    double scale = (double) (1 << zoom) * m_zoom0_scale;
+    return crs_to_tile(coords_crs, scale);
+  }
+
+  cosy::ScaledRigid<double, 2> tile_to_crs(double scale) const
+  {
+    return cosy::ScaledRigid<double, 2>(
+      m_tile_to_crs.get_rotation(),
+      m_tile_to_crs.get_translation(),
+      1.0 / scale
+    );
+  }
+
+  xti::vec2d tile_to_crs(xti::vec2d coords_tile, double scale) const
+  {
+    return tile_to_crs(scale).transform(coords_tile);
   }
 
   xti::vec2d tile_to_crs(xti::vec2d coords_tile, size_t zoom) const
   {
-    xti::vec2d coords_crs = coords_tile;
-    coords_crs = coords_crs / (1 << zoom);
-    coords_crs = m_crs_to_tile_axes.transform_inverse(coords_crs);
-    xt::filter(coords_crs, coords_crs < 0) += 1;
-    coords_crs = coords_crs * m_diff_bound + m_lower_bound;
-    return coords_crs;
+    double scale = (double) (1 << zoom) * m_zoom0_scale;
+    return tile_to_crs(coords_tile, scale);
+  }
+
+  cosy::ScaledRigid<double, 2> tile_to_pixel(double scale) const
+  {
+    return cosy::ScaledRigid<double, 2>(
+      m_tile_to_pixel.get_rotation(),
+      m_tile_to_pixel.get_translation(), // xt::maximum(-(scale * m_tile_to_pixel_axes.transform(xt::abs(m_crs_to_tile_axes.transform(m_size_crs))) - 1), 0.0),
+      m_tile_shape(0)
+    );
+  }
+
+  xti::vec2d tile_to_pixel(xti::vec2d coords_tile, double scale) const
+  {
+    return tile_to_pixel(scale).transform(coords_tile);
   }
 
   xti::vec2d tile_to_pixel(xti::vec2d coords_tile, size_t zoom) const
   {
-    xti::vec2d coords_pixel = coords_tile;
-    coords_pixel = coords_pixel * m_tile_shape;
-    coords_pixel = m_tile_to_pixel_axes.transform(coords_pixel);
-    xt::filter(coords_pixel, coords_pixel < 0) += (1 << zoom) - 1;
-    return coords_pixel;
+    double scale = (double) (1 << zoom) * m_zoom0_scale;
+    return tile_to_pixel(coords_tile, scale);
+  }
+
+  xti::vec2d pixel_to_tile(xti::vec2d coords_pixel, double scale) const
+  {
+    return tile_to_pixel(scale).transform_inverse(coords_pixel);
   }
 
   xti::vec2d pixel_to_tile(xti::vec2d coords_pixel, size_t zoom) const
   {
-    xti::vec2d coords_tile = coords_pixel;
-    coords_tile = m_tile_to_pixel_axes.transform_inverse(coords_tile);
-    coords_tile = coords_tile / m_tile_shape;
-    xt::filter(coords_tile, coords_tile < 0) += (1 << zoom) - 1;
-    return coords_tile;
+    double scale = (double) (1 << zoom) * m_zoom0_scale;
+    return pixel_to_tile(coords_pixel, scale);
   }
 
-  xti::vec2d epsg4326_to_tile(xti::vec2d coords_epsg4326, size_t zoom) const
+  template <typename T>
+  xti::vec2d epsg4326_to_tile(xti::vec2d coords_epsg4326, T zoom_or_scale) const
   {
-    return crs_to_tile(epsg4326_to_crs(coords_epsg4326), zoom);
+    return crs_to_tile(epsg4326_to_crs(coords_epsg4326), zoom_or_scale);
   }
 
-  xti::vec2d tile_to_epsg4326(xti::vec2d coords_tile, size_t zoom) const
+  template <typename T>
+  xti::vec2d tile_to_epsg4326(xti::vec2d coords_tile, T zoom_or_scale) const
   {
-    return crs_to_epsg4326(tile_to_crs(coords_tile, zoom));
+    return crs_to_epsg4326(tile_to_crs(coords_tile, zoom_or_scale));
   }
 
-  xti::vec2d epsg4326_to_pixel(xti::vec2d coords_epsg4326, size_t zoom) const
+  template <typename T>
+  xti::vec2d epsg4326_to_pixel(xti::vec2d coords_epsg4326, T zoom_or_scale) const
   {
-    return tile_to_pixel(epsg4326_to_tile(coords_epsg4326, zoom), zoom);
+    return tile_to_pixel(epsg4326_to_tile(coords_epsg4326, zoom_or_scale), zoom_or_scale);
   }
 
-  xti::vec2d pixel_to_epsg4326(xti::vec2d coords_pixel, size_t zoom) const
+  template <typename T>
+  xti::vec2d pixel_to_epsg4326(xti::vec2d coords_pixel, T zoom_or_scale) const
   {
-    return tile_to_epsg4326(pixel_to_tile(coords_pixel, zoom), zoom);
+    return tile_to_epsg4326(pixel_to_tile(coords_pixel, zoom_or_scale), zoom_or_scale);
   }
 
-  double pixels_per_meter_at_latlon(xti::vec2d latlon, size_t zoom) const
+  template <typename T>
+  double pixels_per_meter_at_latlon(xti::vec2d latlon, T zoom_or_scale) const
   {
-    xti::vec2d center_tile = epsg4326_to_tile(latlon, zoom);
-    xti::vec2d tile_size_deg = xt::abs(tile_to_epsg4326(center_tile + 0.5, zoom) - tile_to_epsg4326(center_tile - 0.5, zoom));
+    xti::vec2d center_tile = epsg4326_to_tile(latlon, zoom_or_scale);
+    xti::vec2d tile_size_deg = xt::abs(tile_to_epsg4326(center_tile + 0.5, zoom_or_scale) - tile_to_epsg4326(center_tile - 0.5, zoom_or_scale));
     xti::vec2d tile_size_meter = tile_size_deg * cosy::geo::meters_per_deg_at_latlon(latlon);
     xti::vec2d pixels_per_meter = xt::abs(m_tile_to_pixel_axes.transform(m_tile_shape / tile_size_meter));
     return pixels_per_meter(1);
@@ -168,8 +219,12 @@ private:
   cosy::geo::CompassAxes m_tile_axes;
   cosy::NamedAxesTransformation<double, 2> m_crs_to_tile_axes;
   cosy::NamedAxesTransformation<double, 2> m_tile_to_pixel_axes;
-  xti::vec2d m_lower_bound;
-  xti::vec2d m_diff_bound;
+  xti::vec2d m_origin_crs;
+  xti::vec2d m_size_crs;
+  double m_zoom0_scale;
+
+  cosy::ScaledRigid<double, 2> m_tile_to_crs;
+  cosy::ScaledRigid<double, 2> m_tile_to_pixel;
 };
 
 } // end of ns tiledwebmaps

@@ -86,7 +86,13 @@ private:
 auto load(TileLoader& tile_loader, xti::vec2s min_tile, xti::vec2s max_tile, size_t zoom)
 {
   xti::vec2s tiles_num = max_tile - min_tile;
-  xti::vec2s pixels_num = tile_loader.get_layout().tile_to_pixel(tiles_num, zoom);
+  xti::vec2s pixels_num = xt::abs(tile_loader.get_layout().tile_to_pixel(tiles_num, zoom));
+
+  xti::vec2i corner1 = tile_loader.get_layout().tile_to_pixel(min_tile, zoom);
+  xti::vec2i corner2 = tile_loader.get_layout().tile_to_pixel(max_tile, zoom);
+  xti::vec2i image_min_pixel = xt::minimum(corner1, corner2);
+  xti::vec2i image_max_pixel = xt::maximum(corner1, corner2);
+
   xt::xtensor<uint8_t, 3> image({pixels_num(0), pixels_num(1), 3});
   for (size_t t0 = min_tile(0); t0 < max_tile(0); t0++)
   {
@@ -95,8 +101,10 @@ auto load(TileLoader& tile_loader, xti::vec2s min_tile, xti::vec2s max_tile, siz
       xti::vec2s tile({t0, t1});
       auto tile_image = tile_loader.load(tile, zoom);
 
-      xti::vec2s min_pixel = tile_loader.get_layout().tile_to_pixel(tile - min_tile, zoom);
-      xti::vec2s max_pixel = tile_loader.get_layout().tile_to_pixel(tile - min_tile + 1, zoom);
+      xti::vec2i corner1 = tile_loader.get_layout().tile_to_pixel(tile, zoom);
+      xti::vec2i corner2 = tile_loader.get_layout().tile_to_pixel(tile + 1, zoom);
+      xti::vec2i min_pixel = xt::minimum(corner1, corner2) - image_min_pixel;
+      xti::vec2i max_pixel = xt::maximum(corner1, corner2) - image_min_pixel;
 
       xt::view(image, xt::range(min_pixel(0), max_pixel(0)), xt::range(min_pixel(1), max_pixel(1)), xt::all()).assign(tile_image);
     }

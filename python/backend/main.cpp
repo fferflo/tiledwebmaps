@@ -11,45 +11,119 @@ thread_local std::shared_ptr<cosy::proj::Context> proj_context = std::make_share
 PYBIND11_MODULE(backend, m)
 {
   py::class_<tiledwebmaps::Layout, std::shared_ptr<tiledwebmaps::Layout>>(m, "Layout")
-    .def(py::init<std::shared_ptr<cosy::proj::CRS>, xti::vec2s, cosy::geo::CompassAxes, bool>(),
+    .def(py::init<std::shared_ptr<cosy::proj::CRS>, xti::vec2s, cosy::geo::CompassAxes, std::optional<std::pair<xti::vec2d, xti::vec2d>>, double, bool>(),
       py::arg("crs"),
       py::arg("tile_shape"),
       py::arg("tile_axes"),
+      py::arg("bounds_crs") = std::optional<std::pair<xti::vec2d, xti::vec2d>>(),
+      py::arg("zoom0_scale") = 0.0,
       py::arg("use_only_first_bound_axis") = true
     )
-    .def("crs_to_tile", &tiledwebmaps::Layout::crs_to_tile,
+    .def("crs_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_crs, double scale){
+        return layout.crs_to_tile(coords_crs, scale);
+      },
+      py::arg("coords"),
+      py::arg("scale")
+    )
+    .def("crs_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_crs, size_t zoom){
+        return layout.crs_to_tile(coords_crs, zoom);
+      },
       py::arg("coords"),
       py::arg("zoom")
     )
-    .def("tile_to_crs", &tiledwebmaps::Layout::tile_to_crs,
+    .def("tile_to_crs", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, double scale){
+        return layout.tile_to_crs(coords_tile, scale);
+      },
+      py::arg("coords"),
+      py::arg("scale")
+    )
+    .def("tile_to_crs", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, size_t zoom){
+        return layout.tile_to_crs(coords_tile, zoom);
+      },
       py::arg("coords"),
       py::arg("zoom")
     )
-    .def("tile_to_pixel", &tiledwebmaps::Layout::tile_to_pixel,
+    .def("tile_to_pixel", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, double scale){
+        return layout.tile_to_pixel(coords_tile, scale);
+      },
+      py::arg("coords"),
+      py::arg("scale")
+    )
+    .def("tile_to_pixel", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, size_t zoom){
+        return layout.tile_to_pixel(coords_tile, zoom);
+      },
       py::arg("coords"),
       py::arg("zoom")
     )
-    .def("pixel_to_tile", &tiledwebmaps::Layout::pixel_to_tile,
+    .def("pixel_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, double scale){
+        return layout.pixel_to_tile(coords_pixel, scale);
+      },
+      py::arg("coords"),
+      py::arg("scale")
+    )
+    .def("pixel_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, size_t zoom){
+        return layout.pixel_to_tile(coords_pixel, zoom);
+      },
       py::arg("coords"),
       py::arg("zoom")
     )
-    .def("epsg4326_to_tile", &tiledwebmaps::Layout::epsg4326_to_tile,
+    .def("epsg4326_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_epsg4326, double scale){
+        return layout.epsg4326_to_tile(coords_epsg4326, scale);
+      },
+      py::arg("coords"),
+      py::arg("scale")
+    )
+    .def("epsg4326_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_epsg4326, size_t zoom){
+        return layout.epsg4326_to_tile(coords_epsg4326, zoom);
+      },
       py::arg("coords"),
       py::arg("zoom")
     )
-    .def("tile_to_epsg4326", &tiledwebmaps::Layout::tile_to_epsg4326,
+    .def("tile_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, double scale){
+        return layout.tile_to_epsg4326(coords_tile, scale);
+      },
+      py::arg("coords"),
+      py::arg("scale")
+    )
+    .def("tile_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, size_t zoom){
+        return layout.tile_to_epsg4326(coords_tile, zoom);
+      },
       py::arg("coords"),
       py::arg("zoom")
     )
-    .def("epsg4326_to_pixel", &tiledwebmaps::Layout::epsg4326_to_pixel,
+    .def("epsg4326_to_pixel", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_epsg4326, double scale){
+        return layout.epsg4326_to_pixel(coords_epsg4326, scale);
+      },
+      py::arg("coords"),
+      py::arg("scale")
+    )
+    .def("epsg4326_to_pixel", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_epsg4326, size_t zoom){
+        return layout.epsg4326_to_pixel(coords_epsg4326, zoom);
+      },
       py::arg("coords"),
       py::arg("zoom")
     )
-    .def("pixel_to_epsg4326", &tiledwebmaps::Layout::pixel_to_epsg4326,
+    .def("pixel_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, double scale){
+        return layout.pixel_to_epsg4326(coords_pixel, scale);
+      },
+      py::arg("coords"),
+      py::arg("scale")
+    )
+    .def("pixel_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, size_t zoom){
+        return layout.pixel_to_epsg4326(coords_pixel, zoom);
+      },
       py::arg("coords"),
       py::arg("zoom")
     )
-    .def("pixels_per_meter_at_latlon", &tiledwebmaps::Layout::pixels_per_meter_at_latlon,
+    .def("pixels_per_meter_at_latlon", [](const tiledwebmaps::Layout& layout, xti::vec2d latlon, double scale){
+        return layout.pixels_per_meter_at_latlon(latlon, scale);
+      },
+      py::arg("latlon"),
+      py::arg("scale")
+    )
+    .def("pixels_per_meter_at_latlon", [](const tiledwebmaps::Layout& layout, xti::vec2d latlon, size_t zoom){
+        return layout.pixels_per_meter_at_latlon(latlon, zoom);
+      },
       py::arg("latlon"),
       py::arg("zoom")
     )
@@ -57,30 +131,22 @@ PYBIND11_MODULE(backend, m)
     .def_property_readonly("tile_shape", [](const tiledwebmaps::Layout& layout) -> xti::vec2i {return xt::cast<int>(layout.get_tile_shape());})
     .def_property_readonly("tile_axes", &tiledwebmaps::Layout::get_tile_axes)
     .def_property_readonly("epsg4326_to_crs", &tiledwebmaps::Layout::get_epsg4326_to_crs)
-    .def_static("XYZ", [](xti::vec2s tile_shape){
-        return tiledwebmaps::Layout::XYZ(proj_context, tile_shape);
+    .def_static("XYZ", [](){
+        return tiledwebmaps::Layout::XYZ(proj_context);
       },
-      py::arg("tile_shape") = xti::vec2s({256, 256}),
       "Creates a new XYZ tiles layout.\n"
       "\n"
       "Uses the epsg:3857 map projection and axis order east-south.\n"
       "\n"
-      "Parameters:\n"
-      "    tile_shape: Shape of a tile in the layout. Defaults to (256, 256)."
-      "\n"
       "Returns:\n"
       "    The XYZ tiles layout."
     )
-    .def_static("TMS", [](xti::vec2s tile_shape){
-        return tiledwebmaps::Layout::TMS(proj_context, tile_shape);
+    .def_static("TMS", [](){
+        return tiledwebmaps::Layout::TMS(proj_context);
       },
-      py::arg("tile_shape") = xti::vec2s({256, 256}),
       "Creates a new TMS tiles layout.\n"
       "\n"
       "Uses the epsg:3857 map projection and axis order east-north.\n"
-      "\n"
-      "Parameters:\n"
-      "    tile_shape: Shape of a tile in the layout. Defaults to (256, 256)."
       "\n"
       "Returns:\n"
       "    The TMS tiles layout."
