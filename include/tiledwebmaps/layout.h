@@ -74,6 +74,8 @@ public:
       xti::vec2d({0.0, 0.0}),// xt::maximum(-(scale * tile_to_pixel_axes.transform(xt::abs(crs_to_tile_axes.transform(m_size_crs))) - 1), 0.0),
       tile_shape(0)
     );
+
+    m_bounds_crs = std::make_pair(m_origin_crs, m_origin_crs + m_size_crs);
   }
 
   const std::shared_ptr<cosy::proj::Transformer>& get_epsg4326_to_crs() const
@@ -202,6 +204,16 @@ public:
     return m_tile_axes;
   }
 
+  std::pair<xti::vec2d, xti::vec2d> get_bounds_crs() const
+  {
+    return m_bounds_crs;
+  }
+
+  double get_zoom0_scale() const
+  {
+    return m_zoom0_scale;
+  }
+
   bool operator==(const Layout& other) const
   {
     return *this->m_crs == *other.m_crs && this->m_tile_shape == other.m_tile_shape && this->m_tile_axes == other.m_tile_axes;
@@ -222,6 +234,7 @@ private:
   xti::vec2d m_origin_crs;
   xti::vec2d m_size_crs;
   double m_zoom0_scale;
+  std::pair<xti::vec2d, xti::vec2d> m_bounds_crs;
 
   cosy::ScaledRigid<double, 2> m_tile_to_crs;
   cosy::ScaledRigid<double, 2> m_tile_to_pixel;

@@ -1,5 +1,6 @@
-import yaml
+import yaml, cosy
 import tiledwebmaps as twm
+import numpy as np
 
 def from_config(config, wait_after_error=5.0, retries=100):
     if isinstance(config, str):
@@ -21,15 +22,36 @@ def from_config(config, wait_after_error=5.0, retries=100):
     tileloaders = {}
     presets = vars(twm.presets)
     for name, values in config.items():
-        if name in presets:
-            kwargs = {**values}
+        kwargs = {**values}
+        if "path" in kwargs:
             del kwargs["path"]
-            del kwargs["zoom"]
+        del kwargs["zoom"]
+
+        if "load_zoom_up" in values:
+            load_zoom_up = int(values["load_zoom_up"])
+            del kwargs["load_zoom_up"]
+        else:
+            load_zoom_up = 0
+
+        if name in presets:
+            assert not "load_zoom_up" in values
             tileloader = presets[name](wait_after_error=wait_after_error, retries=retries, **kwargs)
         else:
-            tileloader = twm.Http(values["uri"], layout=twm.Layout.XYZ((256, 256)), wait_after_error=wait_after_error, retries=retries, header=header)
+            del kwargs["uri"]
+            layout = twm.Layout(
+                crs=cosy.proj.CRS("epsg:3857"),
+                tile_shape=((2 ** load_zoom_up) * 256, (2 ** load_zoom_up) * 256),
+                tile_axes=cosy.geo.CompassAxes("east", "south"),
+            )
+            tileloader = twm.Http(values["uri"], layout=layout, wait_after_error=wait_after_error, retries=retries, header=header, **kwargs)
+
+        # DiskCached
         if "path" in values:
-            tileloader = twm.DiskCached(tileloader, values["path"])
+            tileloader = twm.DiskCached(
+                tileloader,
+                values["path"],
+                load_zoom_up=load_zoom_up,
+            )
         tileloaders[name] = (tileloader, int(values["zoom"]))
 
     return tileloaders

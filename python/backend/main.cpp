@@ -324,18 +324,31 @@ PYBIND11_MODULE(backend, m)
     )
     .def_property_readonly("path", [](const tiledwebmaps::Disk& disk){return disk.get_path().string();})
   ;
-  m.def("DiskCached", [](std::shared_ptr<tiledwebmaps::TileLoader> loader, std::string path, float wait_after_last_modified){
-      return std::make_shared<tiledwebmaps::CachedTileLoader>(loader, std::make_shared<tiledwebmaps::Disk>(path, loader->get_layout(), wait_after_last_modified));
+  m.def("DiskCached", [](std::shared_ptr<tiledwebmaps::TileLoader> loader, std::string path, float wait_after_last_modified, int load_zoom_up){
+      int factor = (1 << load_zoom_up);
+      tiledwebmaps::Layout load_layout = loader->get_layout();
+      tiledwebmaps::Layout cache_layout(
+        load_layout.get_crs(),
+        load_layout.get_epsg4326_to_crs(),
+        load_layout.get_tile_shape() / factor,
+        load_layout.get_tile_axes(),
+        load_layout.get_bounds_crs(),
+        load_layout.get_zoom0_scale(),
+        false
+      );
+      return std::make_shared<tiledwebmaps::CachedTileLoader>(loader, std::make_shared<tiledwebmaps::Disk>(path, cache_layout, wait_after_last_modified));
     },
     py::arg("loader"),
     py::arg("path"),
     py::arg("wait_after_last_modified") = 1.0,
+    py::arg("load_zoom_up") = 0,
     "Returns a new tileloader that caches tiles from the given tileloader on disk.\n"
     "\n"
     "Parameters:\n"
     "    loader: The tileloader whose tiles will be cached.\n"
     "    path: The path to where the cached tiles will be saved, including placeholders. If it does not include placeholders, appends \"/zoom/x/y.jpg\".\n"
     "    wait_after_last_modified: Waits this many seconds after the last modification of a tile before loading it. Defaults to 1.0.\n"
+    "    load_zoom_up: Load tiles at this many zoom levels coarser on cache failure. Defaults to 0.\n"
     "\n"
     "Returns:\n"
     "    A new tileloader that caches tiles from the given tileloader on disk.\n"

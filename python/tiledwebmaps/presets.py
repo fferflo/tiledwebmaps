@@ -12,5 +12,5 @@ def bingmaps(key, imagerySet="Aerial", **kwargs):
     url = url.replace("{subdomain}", response["imageUrlSubdomains"][0])
     url = url.replace("{quadkey}", "{quad}")
 
-    tileloader = twm.Http(url, layout=twm.Layout.XYZ((256, 256)), **kwargs)
+    tileloader = twm.Http(url, layout=twm.Layout.XYZ(), **kwargs)
     return tileloader
