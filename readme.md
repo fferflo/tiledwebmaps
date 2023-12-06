@@ -75,13 +75,7 @@ Some examples:
     ```python
     tileloader = twm.Http("https://imagery.tnris.org/server/services/StratMap/StratMap21_NCCIR_CapArea_Brazos_Kerr/ImageServer/WMSServer?FORMAT=image/jpeg&VERSION=1.3.0&SERVICE=WMS&REQUEST=GetMap&LAYERS=0&STYLES=&CRS={proj}&WIDTH={width}&HEIGHT={height}&BBOX={bbox}")
     ```
-- **Google Maps** Static API:
-    ```python
-    tileloader = twm.Http("https://maps.googleapis.com/maps/api/staticmap?center={lat_center},{lon_center}&size={width}x{height}&zoom={zoom}&maptype=satellite&key=YOUR_API_KEY")
-    ```
-    - This requires an API key and a billing-enabled account as outlined [here](https://developers.google.com/maps/documentation/maps-static/start).
-    - Make sure to follow Google Map's [Terms of Service](https://cloud.google.com/maps-platform/terms), [usage limits](https://developers.google.com/maps/documentation/maps-static/usage-and-billing) and [geo guidelines](https://about.google/brand-resource-center/products-and-services/geo-guidelines/).
-    - This will include the Google logo and copyright on every fetched tile.
+
 - **Bing Maps**:
     ```python
     tileloader = twm.bingmaps(key="YOUR_API_KEY")
