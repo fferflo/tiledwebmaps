@@ -25,7 +25,8 @@ def from_config(config, wait_after_error=5.0, retries=100):
         kwargs = {**values}
         if "path" in kwargs:
             del kwargs["path"]
-        del kwargs["zoom"]
+        if "zoom" in kwargs:
+            del kwargs["zoom"]
 
         if "load_zoom_up" in values:
             load_zoom_up = int(values["load_zoom_up"])
@@ -33,10 +34,10 @@ def from_config(config, wait_after_error=5.0, retries=100):
         else:
             load_zoom_up = 0
 
-        if name in presets:
+        if name in presets and "key" in values:
             assert not "load_zoom_up" in values
             tileloader = presets[name](wait_after_error=wait_after_error, retries=retries, **kwargs)
-        else:
+        elif "uri" in values:
             del kwargs["uri"]
             layout = twm.Layout(
                 crs=cosy.proj.CRS("epsg:3857"),
@@ -44,14 +45,28 @@ def from_config(config, wait_after_error=5.0, retries=100):
                 tile_axes=cosy.geo.CompassAxes("east", "south"),
             )
             tileloader = twm.Http(values["uri"], layout=layout, wait_after_error=wait_after_error, retries=retries, header=header, **kwargs)
+        else:
+            tileloader = None
 
-        # DiskCached
+        # Disk
         if "path" in values:
-            tileloader = twm.DiskCached(
-                tileloader,
-                values["path"],
-                load_zoom_up=load_zoom_up,
-            )
-        tileloaders[name] = (tileloader, int(values["zoom"]))
+            if tileloader is None:
+                if values["path"].endswith(".yaml"):
+                    tileloader = twm.Disk.from_yaml(values["path"])
+                else:
+                    tileloader = twm.Disk(values["path"])
+            else:
+                tileloader = twm.DiskCached(
+                    tileloader,
+                    values["path"],
+                    load_zoom_up=load_zoom_up,
+                )
+
+        if "default" in values:
+            tileloader = twm.WithDefault(tileloader, color=np.array(values["default"]))
+
+        if tileloader is None:
+            raise ValueError("Invalid config")
+        tileloaders[name] = (tileloader, int(values["zoom"]) if "zoom" in values else 0)
 
     return tileloaders
