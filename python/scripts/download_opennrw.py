@@ -39,6 +39,8 @@ if len(lines) > 0:
         return name, lower_utm
     lines = [parse_line(l) for l in tqdm.tqdm(lines, desc="Parsing metadata")]
 else:
+    print(f"Something is wrong with the file at {url}")
+    sys.exit(-1)
     url = "https://www.opengeodata.nrw.de/produkte/geobasis/lusat/dop/dop_jp2_f10/dop_j2w.zip"
     metafile = os.path.join(download_path, "dop_j2w.zip")
     twm.util.download(url, metafile)
@@ -99,7 +101,12 @@ def process(name, lower_utm):
     if not os.path.isfile(metafile) or os.path.isfile(imagefile):
         with lock:
             twm.util.download(url, imagefile)
-        image = imageio.imread(imagefile)[:, :, :3]
+        try:
+            image = imageio.imread(imagefile)[:, :, :3]
+        except Exception as e:
+            print(f"Could not read {imagefile}")
+            print(e)
+            return
         with open(metafile, "w") as f:
             f.write("")
 

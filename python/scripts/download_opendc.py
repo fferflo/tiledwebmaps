@@ -48,7 +48,7 @@ layout_yaml = {
     "tile_shape": [shape[0], shape[1]],
     "tile_axes": ["east", "north"],
     "zoom0_scale": 0.001 / 0.8 * partition,
-    "path": "{x}/{y}.jpg",
+    "path": "{zoom}/{x}/{y}.jpg",
     "use_only_first_bound_axis": False,
     "bounds_crs": {
         "min": [800 * 0.75, 800 * 0.25],
@@ -86,7 +86,7 @@ def process(file):
     latlon = 0.5 * (lower_latlon + upper_latlon)
 
     for image, tile in twm.util.to_tiles(image, latlon, layout, partition):
-        path = os.path.join(args.path, f"{tile[0]}")
+        path = os.path.join(args.path, "0", f"{tile[0]}")
         if not os.path.isdir(path):
             with lock:
                 if not os.path.isdir(path):

@@ -64,7 +64,7 @@ layout_yaml = {
     "tile_shape": [shape[0], shape[1]],
     "tile_axes": ["east", "north"],
     "zoom0_scale": 0.001 / 1.5 * partition,
-    "path": "{x}/{y}.jpg"
+    "path": "{zoom}/{x}/{y}.jpg"
 }
 with open(os.path.join(utm18_path, "layout.yaml"), "w") as f:
     yaml.dump(layout_yaml, f, default_flow_style=False)
@@ -74,7 +74,7 @@ layout_yaml = {
     "tile_shape": [shape[0], shape[1]],
     "tile_axes": ["east", "north"],
     "zoom0_scale": 0.001 / 1.5 * partition,
-    "path": "{x}/{y}.jpg"
+    "path": "{zoom}/{x}/{y}.jpg"
 }
 with open(os.path.join(utm19_path, "layout.yaml"), "w") as f:
     yaml.dump(layout_yaml, f, default_flow_style=False)
@@ -118,7 +118,7 @@ def process(url):
         latlon = 0.5 * (lower_latlon + upper_latlon)
 
         for image, tile in twm.util.to_tiles(image, latlon, layout18 if is_utm_18 else layout19, partition):
-            path = os.path.join(utm18_path if is_utm_18 else utm19_path, f"{tile[0]}")
+            path = os.path.join(utm18_path if is_utm_18 else utm19_path, "0", f"{tile[0]}")
             if not os.path.isdir(path):
                 with lock2:
                     if not os.path.isdir(path):
