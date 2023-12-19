@@ -180,13 +180,15 @@ public:
   }
 
   template <typename T>
-  double pixels_per_meter_at_latlon(xti::vec2d latlon, T zoom_or_scale) const
+  xti::vec2d pixels_per_meter_at_latlon(xti::vec2d latlon, T zoom_or_scale) const
   {
+    static const double f = 0.1;
     xti::vec2d center_tile = epsg4326_to_tile(latlon, zoom_or_scale);
-    xti::vec2d tile_size_deg = xt::abs(tile_to_epsg4326(center_tile + 0.5, zoom_or_scale) - tile_to_epsg4326(center_tile - 0.5, zoom_or_scale));
-    xti::vec2d tile_size_meter = tile_size_deg * cosy::geo::meters_per_deg_at_latlon(latlon);
-    xti::vec2d pixels_per_meter = xt::abs(m_tile_to_pixel_axes.transform(m_tile_shape / tile_size_meter));
-    return pixels_per_meter(1);
+    xti::vec2d f_tile_size_deg = xt::abs(tile_to_epsg4326(center_tile + 0.5 * f, zoom_or_scale) - tile_to_epsg4326(center_tile - 0.5 * f, zoom_or_scale));
+    xti::vec2d f_tile_size_meter = f_tile_size_deg * cosy::geo::meters_per_deg_at_latlon(latlon);
+    xti::vec2d f_tile_size_px = f * xt::cast<double>(m_tile_shape);
+    xti::vec2d pixels_per_meter = xt::abs(m_tile_to_pixel_axes.transform(f_tile_size_px / f_tile_size_meter));
+    return pixels_per_meter;
   }
 
   std::shared_ptr<cosy::proj::CRS> get_crs() const

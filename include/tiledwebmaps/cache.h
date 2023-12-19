@@ -117,10 +117,57 @@ public:
     }
   }
 
+  std::shared_ptr<Cache> get_cache() const
+  {
+    return m_cache;
+  }
+
 private:
   std::shared_ptr<TileLoader> m_loader;
   std::shared_ptr<Cache> m_cache;
   int m_zoom_up;
+};
+
+class WithDefault : public TileLoader
+{
+public:
+  WithDefault(std::shared_ptr<Cache> cache, xti::vec3i color)
+    : TileLoader(cache->get_layout())
+    , m_cache(cache)
+    , m_color(color)
+  {
+  }
+
+  Tile load(xti::vec2s tile_coord, size_t zoom)
+  {
+    if (m_cache->contains(tile_coord, zoom))
+    {
+      return m_cache->load(tile_coord, zoom);
+    }
+    else
+    {
+      Tile tile({m_cache->get_layout().get_tile_shape()(0), m_cache->get_layout().get_tile_shape()(1), 3});
+      for (int r = 0; r < tile.shape(0); r++)
+      {
+        for (int c = 0; c < tile.shape(1); c++)
+        {
+          tile(r, c, 0) = m_color(0);
+          tile(r, c, 1) = m_color(1);
+          tile(r, c, 2) = m_color(2);
+        }
+      }
+      return tile;
+    }
+  }
+
+  std::shared_ptr<Cache> get_cache() const
+  {
+    return m_cache;
+  }
+
+private:
+  std::shared_ptr<Cache> m_cache;
+  xti::vec3i m_color;
 };
 
 } // end of ns tiledwebmaps

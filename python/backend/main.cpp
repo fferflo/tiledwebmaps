@@ -10,7 +10,7 @@ thread_local std::shared_ptr<cosy::proj::Context> proj_context = std::make_share
 
 PYBIND11_MODULE(backend, m)
 {
-  py::class_<tiledwebmaps::Layout, std::shared_ptr<tiledwebmaps::Layout>>(m, "Layout")
+  py::class_<tiledwebmaps::Layout, std::shared_ptr<tiledwebmaps::Layout>>(m, "Layout", py::dynamic_attr())
     .def(py::init<std::shared_ptr<cosy::proj::CRS>, xti::vec2s, cosy::geo::CompassAxes, std::optional<std::pair<xti::vec2d, xti::vec2d>>, double, bool>(),
       py::arg("crs"),
       py::arg("tile_shape"),
@@ -154,11 +154,15 @@ PYBIND11_MODULE(backend, m)
   ;
 
   py::class_<tiledwebmaps::TileLoader, std::shared_ptr<tiledwebmaps::TileLoader>>(m, "TileLoader", py::dynamic_attr())
-    .def("load", &tiledwebmaps::TileLoader::load,
+    .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2s tile, size_t zoom){
+        py::gil_scoped_release gil;
+        return tile_loader.load(tile, zoom);
+      },
       py::arg("tile"),
       py::arg("zoom")
     )
     .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2s min_tile, xti::vec2s max_tile, size_t zoom){
+        py::gil_scoped_release gil;
         return tiledwebmaps::load(tile_loader, min_tile, max_tile, zoom);
       },
       py::arg("min_tile"),
@@ -166,6 +170,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("zoom")
     )
     .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2d latlon, double bearing, double meters_per_pixel, xti::vec2s shape, std::optional<size_t> zoom){
+        py::gil_scoped_release gil;
         if (zoom)
         {
           return tiledwebmaps::load_metric(tile_loader, latlon, bearing, meters_per_pixel, shape, *zoom);
@@ -302,9 +307,19 @@ PYBIND11_MODULE(backend, m)
 
   py::class_<tiledwebmaps::Cache, std::shared_ptr<tiledwebmaps::Cache>, tiledwebmaps::TileLoader>(m, "Cache")
     .def_property_readonly("layout", [](const tiledwebmaps::Cache& cache){return cache.get_layout();})
+    .def("save", &tiledwebmaps::Cache::save,
+      py::arg("image"),
+      py::arg("tile"),
+      py::arg("zoom")
+    )
+    .def("contains", &tiledwebmaps::Cache::contains,
+      py::arg("tile"),
+      py::arg("zoom")
+    )
   ;
   py::class_<tiledwebmaps::CachedTileLoader, std::shared_ptr<tiledwebmaps::CachedTileLoader>, tiledwebmaps::TileLoader>(m, "CachedTileLoader", py::dynamic_attr())
     .def(py::init<std::shared_ptr<tiledwebmaps::TileLoader>, std::shared_ptr<tiledwebmaps::Cache>>())
+    .def_property_readonly("cache", &tiledwebmaps::CachedTileLoader::get_cache)
   ;
 
   py::class_<tiledwebmaps::Disk, std::shared_ptr<tiledwebmaps::Disk>, tiledwebmaps::Cache>(m, "Disk", py::dynamic_attr())
@@ -373,6 +388,20 @@ PYBIND11_MODULE(backend, m)
     "Returns:\n"
     "    A new tileloader that caches tiles from the given tileloader in a LRU cache.\n"
   );
+  py::class_<tiledwebmaps::WithDefault, std::shared_ptr<tiledwebmaps::WithDefault>, tiledwebmaps::TileLoader>(m, "WithDefault", py::dynamic_attr())
+    .def(py::init<std::shared_ptr<tiledwebmaps::Cache>, xti::vec3i>(),
+      py::arg("loader"),
+      py::arg("color") = xti::vec3i({255, 255, 255}),
+      "Returns a new tileloader that returns default tiles with the given color if the given tileloader does not contain a tile.\n"
+      "\n"
+      "Parameters:\n"
+      "    loader: The tileloader whose tiles will be returned if they exist.\n"
+      "    color: Color that the default tile will be filled with. Defaults to [255, 255, 255].\n"
+      "\n"
+      "Returns:\n"
+      "    A new tileloader that returns default tiles if the given tileloader does not contain a tile.\n"
+    )
+  ;
 
 
   py::register_exception<tiledwebmaps::LoadTileException>(m, "LoadTileException");

@@ -20,7 +20,7 @@ namespace tiledwebmaps {
 
 bool ends_with(std::string_view str, std::string_view suffix)
 {
-    return str.size() >= suffix.size() && 0 == str.compare(str.size() - suffix.size(), suffix.size(), suffix);
+  return str.size() >= suffix.size() && 0 == str.compare(str.size() - suffix.size(), suffix.size(), suffix);
 }
 
 class ImreadException : public CacheFailure
@@ -79,6 +79,7 @@ cv::Mat safe_imread(std::filesystem::path path)
   {
     throw ImreadException("Failed to convert data array of file " + path.string() + " to cv mat");
   }
+
   cv::Mat image_cv = cv::imdecode(data_cv, cv::IMREAD_COLOR);
   if (image_cv.data == NULL)
   {
@@ -193,7 +194,7 @@ public:
     auto sleep_duration = std::chrono::duration<float>(m_wait_after_last_modified) - (now_time - last_modified_time);
     if (sleep_duration > std::chrono::seconds(0))
     {
-       std::this_thread::sleep_for(sleep_duration);
+      std::this_thread::sleep_for(sleep_duration);
     }
 
     cv::Mat image_cv = safe_imread(path);
