@@ -169,17 +169,17 @@ public:
     m_path = path;
   }
 
-  std::filesystem::path get_path(xti::vec2s tile, size_t zoom) const
+  std::filesystem::path get_path(xti::vec2i tile, int zoom) const
   {
     return replace_placeholders(m_path, this->get_layout(), tile, zoom);
   }
 
-  bool contains(xti::vec2s tile, size_t zoom) const
+  bool contains(xti::vec2i tile, int zoom) const
   {
     return std::filesystem::exists(get_path(tile, zoom));
   }
 
-  Tile load(xti::vec2s tile, size_t zoom)
+  Tile load(xti::vec2i tile, int zoom)
   {
     std::shared_lock<std::shared_mutex> lock(m_mutex.mutex);
 
@@ -210,7 +210,7 @@ public:
     }
   }
 
-  void save(const Tile& image, xti::vec2s tile, size_t zoom)
+  void save(const Tile& image, xti::vec2i tile, int zoom)
   {
     std::lock_guard<std::shared_mutex> lock(m_mutex.mutex);
 

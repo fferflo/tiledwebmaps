@@ -16,20 +16,20 @@ namespace tiledwebmaps {
 class LRU : public Cache
 {
 public:
-  using Key = std::tuple<size_t, size_t, size_t>; // tile-x, tile-y, zoom
+  using Key = std::tuple<int, int, int>; // tile-x, tile-y, zoom
 
-  LRU(const Layout& layout, size_t size)
+  LRU(const Layout& layout, int size)
     : Cache(layout)
     , m_size(size)
   {
   }
 
-  bool contains(xti::vec2s tile, size_t zoom) const
+  bool contains(xti::vec2i tile, int zoom) const
   {
     return m_key_to_tile.count(Key(tile(0), tile(1), zoom)) > 0;
   }
 
-  Tile load(xti::vec2s tile, size_t zoom)
+  Tile load(xti::vec2i tile, int zoom)
   {
     std::lock_guard<std::mutex> guard(m_mutex);
 
@@ -44,7 +44,7 @@ public:
     return m_key_to_tile[key];
   }
 
-  void save(const Tile& image, xti::vec2s tile, size_t zoom)
+  void save(const Tile& image, xti::vec2i tile, int zoom)
   {
     std::lock_guard<std::mutex> guard(m_mutex);
 
@@ -69,7 +69,7 @@ public:
   }
 
 private:
-  size_t m_size;
+  int m_size;
   std::map<Key, Tile> m_key_to_tile;
   std::list<Key> m_keys;
   std::mutex m_mutex;

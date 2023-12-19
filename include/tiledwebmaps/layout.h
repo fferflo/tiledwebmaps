@@ -18,21 +18,21 @@ public:
   // https://gist.github.com/tmcw/4954720
   static Layout XYZ(std::shared_ptr<cosy::proj::Context> proj_context)
   {
-    return Layout(std::make_shared<cosy::proj::CRS>(proj_context, "epsg:3857"), xti::vec2s({256, 256}), cosy::geo::CompassAxes("east", "south"));
+    return Layout(std::make_shared<cosy::proj::CRS>(proj_context, "epsg:3857"), xti::vec2i({256, 256}), cosy::geo::CompassAxes("east", "south"));
   }
 
   // https://gist.github.com/tmcw/4954720
   static Layout TMS(std::shared_ptr<cosy::proj::Context> proj_context)
   {
-    return Layout(std::make_shared<cosy::proj::CRS>(proj_context, "epsg:3857"), xti::vec2s({256, 256}), cosy::geo::CompassAxes("east", "north"));
+    return Layout(std::make_shared<cosy::proj::CRS>(proj_context, "epsg:3857"), xti::vec2i({256, 256}), cosy::geo::CompassAxes("east", "north"));
   }
 
-  Layout(std::shared_ptr<cosy::proj::CRS> crs, xti::vec2s tile_shape, cosy::geo::CompassAxes tile_axes, std::optional<std::pair<xti::vec2d, xti::vec2d>> bounds_crs = std::optional<std::pair<xti::vec2d, xti::vec2d>>(), double zoom0_scale = 0.0, bool use_only_first_bound_axis = true)
+  Layout(std::shared_ptr<cosy::proj::CRS> crs, xti::vec2i tile_shape, cosy::geo::CompassAxes tile_axes, std::optional<std::pair<xti::vec2d, xti::vec2d>> bounds_crs = std::optional<std::pair<xti::vec2d, xti::vec2d>>(), double zoom0_scale = 0.0, bool use_only_first_bound_axis = true)
     : Layout(crs, std::make_shared<cosy::proj::Transformer>(std::make_shared<cosy::proj::CRS>(crs->get_context(), "epsg:4326"), crs), tile_shape, tile_axes, bounds_crs, zoom0_scale, use_only_first_bound_axis)
   {
   }
 
-  Layout(std::shared_ptr<cosy::proj::CRS> crs, std::shared_ptr<cosy::proj::Transformer> epsg4326_to_crs, xti::vec2s tile_shape, cosy::geo::CompassAxes tile_axes, std::optional<std::pair<xti::vec2d, xti::vec2d>> bounds_crs = std::optional<std::pair<xti::vec2d, xti::vec2d>>(), double zoom0_scale = 0.0, bool use_only_first_bound_axis = true)
+  Layout(std::shared_ptr<cosy::proj::CRS> crs, std::shared_ptr<cosy::proj::Transformer> epsg4326_to_crs, xti::vec2i tile_shape, cosy::geo::CompassAxes tile_axes, std::optional<std::pair<xti::vec2d, xti::vec2d>> bounds_crs = std::optional<std::pair<xti::vec2d, xti::vec2d>>(), double zoom0_scale = 0.0, bool use_only_first_bound_axis = true)
     : m_crs(crs)
     , m_epsg4326_to_crs(std::move(epsg4326_to_crs))
     , m_tile_shape(tile_shape)
@@ -98,7 +98,7 @@ public:
     return tile_to_crs(scale).transform_inverse(coords_crs);
   }
  
-  xti::vec2d crs_to_tile(xti::vec2d coords_crs, size_t zoom) const
+  xti::vec2d crs_to_tile(xti::vec2d coords_crs, int zoom) const
   {
     double scale = (double) (1 << zoom) * m_zoom0_scale;
     return crs_to_tile(coords_crs, scale);
@@ -118,7 +118,7 @@ public:
     return tile_to_crs(scale).transform(coords_tile);
   }
 
-  xti::vec2d tile_to_crs(xti::vec2d coords_tile, size_t zoom) const
+  xti::vec2d tile_to_crs(xti::vec2d coords_tile, int zoom) const
   {
     double scale = (double) (1 << zoom) * m_zoom0_scale;
     return tile_to_crs(coords_tile, scale);
@@ -138,7 +138,7 @@ public:
     return tile_to_pixel(scale).transform(coords_tile);
   }
 
-  xti::vec2d tile_to_pixel(xti::vec2d coords_tile, size_t zoom) const
+  xti::vec2d tile_to_pixel(xti::vec2d coords_tile, int zoom) const
   {
     double scale = (double) (1 << zoom) * m_zoom0_scale;
     return tile_to_pixel(coords_tile, scale);
@@ -149,7 +149,7 @@ public:
     return tile_to_pixel(scale).transform_inverse(coords_pixel);
   }
 
-  xti::vec2d pixel_to_tile(xti::vec2d coords_pixel, size_t zoom) const
+  xti::vec2d pixel_to_tile(xti::vec2d coords_pixel, int zoom) const
   {
     double scale = (double) (1 << zoom) * m_zoom0_scale;
     return pixel_to_tile(coords_pixel, scale);
@@ -196,7 +196,7 @@ public:
     return m_crs;
   }
 
-  xti::vec2s get_tile_shape() const
+  xti::vec2i get_tile_shape() const
   {
     return m_tile_shape;
   }
@@ -229,7 +229,7 @@ public:
 private:
   std::shared_ptr<cosy::proj::CRS> m_crs;
   std::shared_ptr<cosy::proj::Transformer> m_epsg4326_to_crs;
-  xti::vec2s m_tile_shape;
+  xti::vec2i m_tile_shape;
   cosy::geo::CompassAxes m_tile_axes;
   cosy::NamedAxesTransformation<double, 2> m_crs_to_tile_axes;
   cosy::NamedAxesTransformation<double, 2> m_tile_to_pixel_axes;

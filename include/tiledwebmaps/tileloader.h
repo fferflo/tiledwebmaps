@@ -45,7 +45,7 @@ public:
 
   virtual ~TileLoader() = default;
 
-  virtual Tile load(xti::vec2s tile, size_t zoom) = 0;
+  virtual Tile load(xti::vec2i tile, int zoom) = 0;
 
   const Layout& get_layout() const
   {
@@ -56,7 +56,7 @@ protected:
   template <typename TTensor>
   Tile to_tile(TTensor&& input)
   {
-    xti::vec2s got_tile_shape({input.shape()[0], input.shape()[1]});
+    xti::vec2i got_tile_shape({(int) input.shape()[0], (int) input.shape()[1]});
     if (got_tile_shape != m_layout.get_tile_shape())
     {
       throw LoadTileException("Expected tile shape " + XTI_TO_STRING(m_layout.get_tile_shape()) + ", got tile shape " + XTI_TO_STRING(got_tile_shape));
@@ -83,17 +83,17 @@ private:
   Layout m_layout;
 };
 
-auto load(TileLoader& tile_loader, xti::vec2s min_tile, xti::vec2s max_tile, size_t zoom)
+auto load(TileLoader& tile_loader, xti::vec2i min_tile, xti::vec2i max_tile, int zoom)
 {
-  xti::vec2s tiles_num = max_tile - min_tile;
-  xti::vec2s pixels_num = xt::abs(tile_loader.get_layout().tile_to_pixel(tiles_num, zoom));
+  xti::vec2i tiles_num = max_tile - min_tile;
+  xti::vec2i pixels_num = xt::abs(tile_loader.get_layout().tile_to_pixel(tiles_num, zoom));
 
   xti::vec2i corner1 = tile_loader.get_layout().tile_to_pixel(min_tile, zoom);
   xti::vec2i corner2 = tile_loader.get_layout().tile_to_pixel(max_tile, zoom);
   xti::vec2i image_min_pixel = xt::minimum(corner1, corner2);
   xti::vec2i image_max_pixel = xt::maximum(corner1, corner2);
 
-  xt::xtensor<uint8_t, 3> image({pixels_num(0), pixels_num(1), 3});
+  xt::xtensor<uint8_t, 3> image({(size_t) pixels_num(0), (size_t) pixels_num(1), 3});
   for (int t0 = min_tile(0); t0 < max_tile(0); t0++)
   {
     for (int t1 = min_tile(1); t1 < max_tile(1); t1++)
@@ -123,12 +123,12 @@ auto load(TileLoader& tile_loader, xti::vec2s min_tile, xti::vec2s max_tile, siz
   return image;
 }
 
-auto load(TileLoader& tile_loader, xti::vec2s tile, size_t zoom)
+auto load(TileLoader& tile_loader, xti::vec2i tile, int zoom)
 {
   return tile_loader.load(tile, zoom);
 }
 
-xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2s shape, size_t zoom)
+xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2i shape, int zoom)
 {
   // Load source image
   xti::vec2f dest_pixels = shape;
@@ -151,10 +151,10 @@ xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, 
   xti::vec2d global_min_pixel = global_center_pixel - src_pixels / 2;
   xti::vec2d global_max_pixel = global_center_pixel + src_pixels / 2;
 
-  xti::vec2s global_tile_corner1 = tile_loader.get_layout().pixel_to_tile(global_min_pixel, zoom);
-  xti::vec2s global_tile_corner2 = tile_loader.get_layout().pixel_to_tile(global_max_pixel, zoom);
-  xti::vec2s global_min_tile = xt::minimum(global_tile_corner1, global_tile_corner2);
-  xti::vec2s global_max_tile = xt::maximum(global_tile_corner1, global_tile_corner2) + 1;
+  xti::vec2i global_tile_corner1 = tile_loader.get_layout().pixel_to_tile(global_min_pixel, zoom);
+  xti::vec2i global_tile_corner2 = tile_loader.get_layout().pixel_to_tile(global_max_pixel, zoom);
+  xti::vec2i global_min_tile = xt::minimum(global_tile_corner1, global_tile_corner2);
+  xti::vec2i global_max_tile = xt::maximum(global_tile_corner1, global_tile_corner2) + 1;
 
   auto src_image = load(tile_loader, global_min_tile, global_max_tile, zoom);
 
@@ -220,9 +220,9 @@ xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, 
   return image;
 }
 
-xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2s shape)
+xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2i shape)
 {
-  size_t zoom = 0;
+  int zoom = 0;
   while (1.0 / xt::amax(tile_loader.get_layout().pixels_per_meter_at_latlon(latlon, zoom))() < 0.5 * meters_per_pixel)
   {
     zoom++;
@@ -230,7 +230,7 @@ xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, 
   return load_metric(tile_loader, latlon, bearing, meters_per_pixel, shape, zoom);
 }
 
-std::string replace_placeholders(std::string url, const Layout& layout, xti::vec2s tile, size_t zoom)
+std::string replace_placeholders(std::string url, const Layout& layout, xti::vec2i tile, int zoom)
 {
   xti::vec2d crs_lower = layout.tile_to_crs(tile, zoom);
   xti::vec2d crs_upper = layout.tile_to_crs(tile + 1, zoom);

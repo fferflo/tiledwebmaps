@@ -25,7 +25,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    .def("crs_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_crs, size_t zoom){
+    .def("crs_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_crs, int zoom){
         return layout.crs_to_tile(coords_crs, zoom);
       },
       py::arg("coords"),
@@ -37,7 +37,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    .def("tile_to_crs", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, size_t zoom){
+    .def("tile_to_crs", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, int zoom){
         return layout.tile_to_crs(coords_tile, zoom);
       },
       py::arg("coords"),
@@ -49,7 +49,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    .def("tile_to_pixel", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, size_t zoom){
+    .def("tile_to_pixel", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, int zoom){
         return layout.tile_to_pixel(coords_tile, zoom);
       },
       py::arg("coords"),
@@ -61,7 +61,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    .def("pixel_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, size_t zoom){
+    .def("pixel_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, int zoom){
         return layout.pixel_to_tile(coords_pixel, zoom);
       },
       py::arg("coords"),
@@ -73,7 +73,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    .def("epsg4326_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_epsg4326, size_t zoom){
+    .def("epsg4326_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_epsg4326, int zoom){
         return layout.epsg4326_to_tile(coords_epsg4326, zoom);
       },
       py::arg("coords"),
@@ -85,7 +85,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    .def("tile_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, size_t zoom){
+    .def("tile_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_tile, int zoom){
         return layout.tile_to_epsg4326(coords_tile, zoom);
       },
       py::arg("coords"),
@@ -97,7 +97,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    .def("epsg4326_to_pixel", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_epsg4326, size_t zoom){
+    .def("epsg4326_to_pixel", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_epsg4326, int zoom){
         return layout.epsg4326_to_pixel(coords_epsg4326, zoom);
       },
       py::arg("coords"),
@@ -109,7 +109,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    .def("pixel_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, size_t zoom){
+    .def("pixel_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, int zoom){
         return layout.pixel_to_epsg4326(coords_pixel, zoom);
       },
       py::arg("coords"),
@@ -121,7 +121,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("latlon"),
       py::arg("scale")
     )
-    .def("pixels_per_meter_at_latlon", [](const tiledwebmaps::Layout& layout, xti::vec2d latlon, size_t zoom){
+    .def("pixels_per_meter_at_latlon", [](const tiledwebmaps::Layout& layout, xti::vec2d latlon, int zoom){
         return layout.pixels_per_meter_at_latlon(latlon, zoom);
       },
       py::arg("latlon"),
@@ -154,14 +154,14 @@ PYBIND11_MODULE(backend, m)
   ;
 
   py::class_<tiledwebmaps::TileLoader, std::shared_ptr<tiledwebmaps::TileLoader>>(m, "TileLoader", py::dynamic_attr())
-    .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2s tile, size_t zoom){
+    .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2s tile, int zoom){
         py::gil_scoped_release gil;
         return tile_loader.load(tile, zoom);
       },
       py::arg("tile"),
       py::arg("zoom")
     )
-    .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2s min_tile, xti::vec2s max_tile, size_t zoom){
+    .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2s min_tile, xti::vec2s max_tile, int zoom){
         py::gil_scoped_release gil;
         return tiledwebmaps::load(tile_loader, min_tile, max_tile, zoom);
       },
@@ -169,7 +169,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("max_tile"),
       py::arg("zoom")
     )
-    .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2d latlon, double bearing, double meters_per_pixel, xti::vec2s shape, std::optional<size_t> zoom){
+    .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2d latlon, double bearing, double meters_per_pixel, xti::vec2s shape, std::optional<int> zoom){
         py::gil_scoped_release gil;
         if (zoom)
         {
@@ -184,7 +184,7 @@ PYBIND11_MODULE(backend, m)
       py::arg("bearing"),
       py::arg("meters_per_pixel"),
       py::arg("shape"),
-      py::arg("zoom") = std::optional<size_t>(),
+      py::arg("zoom") = std::optional<int>(),
       "Load an image with the given location, bearing and resolution.\n"
       "\n"
       "Parameters:\n"
@@ -200,7 +200,7 @@ PYBIND11_MODULE(backend, m)
   ;
 
   py::class_<tiledwebmaps::Http, std::shared_ptr<tiledwebmaps::Http>, tiledwebmaps::TileLoader>(m, "Http")
-    .def(py::init([](std::string url, tiledwebmaps::Layout layout, size_t retries, float wait_after_error, bool verify_ssl, std::optional<std::string> capath, std::optional<std::string> cafile, std::map<std::string, std::string> header, bool allow_multithreading){
+    .def(py::init([](std::string url, tiledwebmaps::Layout layout, int retries, float wait_after_error, bool verify_ssl, std::optional<std::string> capath, std::optional<std::string> cafile, std::map<std::string, std::string> header, bool allow_multithreading){
         if (!capath && !cafile)
         {
           auto ssl = py::module::import("ssl");

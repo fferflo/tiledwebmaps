@@ -34,7 +34,7 @@ public:
     }
   };
 
-  Http(std::string url, const Layout& layout, size_t retries = 10, float wait_after_error = 1.5, bool verify_ssl = true, std::optional<std::filesystem::path> capath = std::optional<std::filesystem::path>(), std::optional<std::filesystem::path> cafile = std::optional<std::filesystem::path>(), std::map<std::string, std::string> header = std::map<std::string, std::string>(), bool allow_multithreading = false)
+  Http(std::string url, const Layout& layout, int retries = 10, float wait_after_error = 1.5, bool verify_ssl = true, std::optional<std::filesystem::path> capath = std::optional<std::filesystem::path>(), std::optional<std::filesystem::path> cafile = std::optional<std::filesystem::path>(), std::map<std::string, std::string> header = std::map<std::string, std::string>(), bool allow_multithreading = false)
     : TileLoader(layout)
     , m_url(url)
     , m_retries(retries)
@@ -48,14 +48,14 @@ public:
   {
   }
 
-  Tile load(xti::vec2s tile, size_t zoom)
+  Tile load(xti::vec2i tile, int zoom)
   {
     auto lock = m_allow_multithreading ? std::unique_lock<std::mutex>() : std::unique_lock<std::mutex>(m_mutex.mutex);
 
     std::string url = this->get_url(tile, zoom);
 
     LoadTileException last_ex;
-    for (size_t tries = 0; tries < m_retries; ++tries)
+    for (int tries = 0; tries < m_retries; ++tries)
     {
       if (tries > 0)
       {
@@ -136,14 +136,14 @@ public:
     throw last_ex;
   }
 
-  std::string get_url(xti::vec2s tile, size_t zoom) const
+  std::string get_url(xti::vec2i tile, int zoom) const
   {
     return replace_placeholders(m_url, this->get_layout(), tile, zoom);
   }
 
 private:
   std::string m_url;
-  size_t m_retries;
+  int m_retries;
   float m_wait_after_error;
   bool m_verify_ssl;
   std::optional<std::filesystem::path> m_capath;

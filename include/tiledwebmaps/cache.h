@@ -26,9 +26,9 @@ public:
   {
   }
 
-  virtual void save(const Tile& image, xti::vec2s tile, size_t zoom) = 0;
+  virtual void save(const Tile& image, xti::vec2i tile, int zoom) = 0;
 
-  virtual bool contains(xti::vec2s tile, size_t zoom) const = 0;
+  virtual bool contains(xti::vec2i tile, int zoom) const = 0;
 };
 
 class CachedTileLoader : public TileLoader
@@ -39,8 +39,8 @@ public:
     , m_cache(cache)
     , m_loader(loader)
   {
-    xti::vec2s cache_tile_shape = cache->get_layout().get_tile_shape();
-    xti::vec2s loader_tile_shape = loader->get_layout().get_tile_shape(); // can be larger than cache tile shape
+    xti::vec2i cache_tile_shape = cache->get_layout().get_tile_shape();
+    xti::vec2i loader_tile_shape = loader->get_layout().get_tile_shape(); // can be larger than cache tile shape
     
     if (!xt::all(xt::equal(loader_tile_shape / cache_tile_shape * cache_tile_shape, loader_tile_shape)))
     {
@@ -55,7 +55,7 @@ public:
     m_zoom_up = int(std::log2(zoom_up(0)) + 0.1);
   }
 
-  Tile load(xti::vec2s tile_coord, size_t zoom)
+  Tile load(xti::vec2i tile_coord, int zoom)
   {
     if (m_cache->contains(tile_coord, zoom))
     {
@@ -78,26 +78,26 @@ public:
     {
       int factor = (1 << m_zoom_up);
 
-      xti::vec2s multitile_coord = tile_coord / factor;
+      xti::vec2i multitile_coord = tile_coord / factor;
       Tile multitile = m_loader->load(multitile_coord, zoom - m_zoom_up);
 
       // Divide into tiles
-      xti::vec2s min_tile = multitile_coord * factor;
-      xti::vec2s max_tile = (multitile_coord + 1) * factor;
+      xti::vec2i min_tile = multitile_coord * factor;
+      xti::vec2i max_tile = (multitile_coord + 1) * factor;
       xti::vec2i corner1 = m_cache->get_layout().tile_to_pixel(min_tile, zoom);
       xti::vec2i corner2 = m_cache->get_layout().tile_to_pixel(max_tile, zoom);
       xti::vec2i image_min_pixel = xt::minimum(corner1, corner2);
       xti::vec2i image_max_pixel = xt::maximum(corner1, corner2);
 
       Tile resulttile;
-      for (size_t tile_rel_x = 0; tile_rel_x < factor; tile_rel_x++)
+      for (int tile_rel_x = 0; tile_rel_x < factor; tile_rel_x++)
       {
-        for (size_t tile_rel_y = 0; tile_rel_y < factor; tile_rel_y++)
+        for (int tile_rel_y = 0; tile_rel_y < factor; tile_rel_y++)
         {
-          xti::vec2s tile_rel({tile_rel_x, tile_rel_y});
-          xti::vec2s subtile_coord = multitile_coord * factor + tile_rel;
+          xti::vec2i tile_rel({tile_rel_x, tile_rel_y});
+          xti::vec2i subtile_coord = multitile_coord * factor + tile_rel;
 
-          xti::vec2s tile_coord_xy = min_tile + tile_rel;
+          xti::vec2i tile_coord_xy = min_tile + tile_rel;
           xti::vec2i corner1 = m_cache->get_layout().tile_to_pixel(tile_coord_xy, zoom);
           xti::vec2i corner2 = m_cache->get_layout().tile_to_pixel(tile_coord_xy + 1, zoom);
           xti::vec2i min_pixel = xt::minimum(corner1, corner2) - image_min_pixel;
@@ -138,7 +138,7 @@ public:
   {
   }
 
-  Tile load(xti::vec2s tile_coord, size_t zoom)
+  Tile load(xti::vec2i tile_coord, int zoom)
   {
     if (m_cache->contains(tile_coord, zoom))
     {
@@ -146,7 +146,7 @@ public:
     }
     else
     {
-      Tile tile({m_cache->get_layout().get_tile_shape()(0), m_cache->get_layout().get_tile_shape()(1), 3});
+      Tile tile({(size_t) m_cache->get_layout().get_tile_shape()(0), (size_t) m_cache->get_layout().get_tile_shape()(1), 3});
       for (int r = 0; r < tile.shape(0); r++)
       {
         for (int c = 0; c < tile.shape(1); c++)
