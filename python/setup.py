@@ -16,6 +16,9 @@ setup(
         "cosy1>=0.1.2",
         "pyyaml",
         "requests",
+        "dbfread",
+        "pandas",
+        "openpyxl",
     ],
     url="https://github.com/fferflo/tiledwebmaps",
 )

@@ -111,7 +111,7 @@ private:
   std::string m_message;
 };
 
-class LoadFileException : public std::exception
+class LoadFileException : public LoadTileException
 {
 public:
   LoadFileException(std::filesystem::path path, std::string message)

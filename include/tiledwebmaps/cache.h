@@ -39,8 +39,8 @@ public:
     , m_cache(cache)
     , m_loader(loader)
   {
-    xti::vec2i cache_tile_shape = cache->get_layout().get_tile_shape();
-    xti::vec2i loader_tile_shape = loader->get_layout().get_tile_shape(); // can be larger than cache tile shape
+    xti::vec2i cache_tile_shape = cache->get_layout().get_tile_shape_px();
+    xti::vec2i loader_tile_shape = loader->get_layout().get_tile_shape_px(); // can be larger than cache tile shape
     
     if (!xt::all(xt::equal(loader_tile_shape / cache_tile_shape * cache_tile_shape, loader_tile_shape)))
     {
@@ -131,42 +131,41 @@ private:
 class WithDefault : public TileLoader
 {
 public:
-  WithDefault(std::shared_ptr<Cache> cache, xti::vec3i color)
-    : TileLoader(cache->get_layout())
-    , m_cache(cache)
+  WithDefault(std::shared_ptr<TileLoader> tileloader, xti::vec3i color)
+    : TileLoader(tileloader->get_layout())
+    , m_tileloader(tileloader)
     , m_color(color)
   {
   }
 
   Tile load(xti::vec2i tile_coord, int zoom)
   {
-    if (m_cache->contains(tile_coord, zoom))
+    try
     {
-      return m_cache->load(tile_coord, zoom);
+      return m_tileloader->load(tile_coord, zoom);
     }
-    else
+    catch (LoadTileException e)
     {
-      Tile tile({(size_t) m_cache->get_layout().get_tile_shape()(0), (size_t) m_cache->get_layout().get_tile_shape()(1), 3});
-      for (int r = 0; r < tile.shape(0); r++)
-      {
-        for (int c = 0; c < tile.shape(1); c++)
-        {
-          tile(r, c, 0) = m_color(0);
-          tile(r, c, 1) = m_color(1);
-          tile(r, c, 2) = m_color(2);
-        }
-      }
-      return tile;
     }
-  }
+    catch (CacheFailure e)
+    {
+    }
 
-  std::shared_ptr<Cache> get_cache() const
-  {
-    return m_cache;
+    Tile tile({(size_t) m_tileloader->get_layout().get_tile_shape_px()(0), (size_t) m_tileloader->get_layout().get_tile_shape_px()(1), 3});
+    for (int r = 0; r < tile.shape(0); r++)
+    {
+      for (int c = 0; c < tile.shape(1); c++)
+      {
+        tile(r, c, 0) = m_color(0);
+        tile(r, c, 1) = m_color(1);
+        tile(r, c, 2) = m_color(2);
+      }
+    }
+    return tile;
   }
 
 private:
-  std::shared_ptr<Cache> m_cache;
+  std::shared_ptr<TileLoader> m_tileloader;
   xti::vec3i m_color;
 };
 

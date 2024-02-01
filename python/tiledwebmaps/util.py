@@ -24,7 +24,7 @@ def download(url, file, retries=100, timeout=10.0):
                 continue
         except requests.exceptions.RequestException as e:
             error = e
-            time.sleep(10.0)
+            time.sleep(timeout)
             continue
         break
     else:

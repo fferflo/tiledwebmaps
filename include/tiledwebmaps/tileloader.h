@@ -57,9 +57,9 @@ protected:
   Tile to_tile(TTensor&& input)
   {
     xti::vec2i got_tile_shape({(int) input.shape()[0], (int) input.shape()[1]});
-    if (got_tile_shape != m_layout.get_tile_shape())
+    if (got_tile_shape != m_layout.get_tile_shape_px())
     {
-      throw LoadTileException("Expected tile shape " + XTI_TO_STRING(m_layout.get_tile_shape()) + ", got tile shape " + XTI_TO_STRING(got_tile_shape));
+      throw LoadTileException("Expected tile shape " + XTI_TO_STRING(m_layout.get_tile_shape_px()) + ", got tile shape " + XTI_TO_STRING(got_tile_shape));
     }
 
     Tile result;
@@ -256,7 +256,7 @@ std::string replace_placeholders(std::string url, const Layout& layout, xti::vec
     std::swap(px_lower(1), px_upper(1));
   }
   xti::vec2d px_center = layout.tile_to_pixel(tile + 0.5, zoom);
-  xti::vec2i px_size = layout.get_tile_shape();
+  xti::vec2i px_size = layout.get_tile_shape_px();
 
   xti::vec2i tile_lower = tile;
   xti::vec2d tile_center = tile + 0.5;

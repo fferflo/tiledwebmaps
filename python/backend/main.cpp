@@ -11,13 +11,13 @@ thread_local std::shared_ptr<cosy::proj::Context> proj_context = std::make_share
 PYBIND11_MODULE(backend, m)
 {
   py::class_<tiledwebmaps::Layout, std::shared_ptr<tiledwebmaps::Layout>>(m, "Layout", py::dynamic_attr())
-    .def(py::init<std::shared_ptr<cosy::proj::CRS>, xti::vec2s, cosy::geo::CompassAxes, std::optional<std::pair<xti::vec2d, xti::vec2d>>, double, bool>(),
-      py::arg("crs"),
-      py::arg("tile_shape"),
-      py::arg("tile_axes"),
-      py::arg("bounds_crs") = std::optional<std::pair<xti::vec2d, xti::vec2d>>(),
-      py::arg("zoom0_scale") = 0.0,
-      py::arg("use_only_first_bound_axis") = true
+    .def(py::init<std::shared_ptr<cosy::proj::CRS>, xti::vec2i, xti::vec2d, xti::vec2d, std::optional<xti::vec2d>, cosy::geo::CompassAxes>(),
+      py::arg("crs") = std::make_shared<cosy::proj::CRS>("epsg:3857"),
+      py::arg("tile_shape_px") = xti::vec2i({256, 256}),
+      py::arg("tile_shape_crs") = xti::vec2d({1.0, 1.0}),
+      py::arg("origin_crs") = xti::vec2d({0.0, 0.0}),
+      py::arg("size_crs") = std::optional<xti::vec2d>(),
+      py::arg("tile_axes") = cosy::geo::CompassAxes("east", "south")
     )
     .def("crs_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_crs, double scale){
         return layout.crs_to_tile(coords_crs, scale);
@@ -109,8 +109,36 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    .def("pixel_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, int zoom){
-        return layout.pixel_to_epsg4326(coords_pixel, zoom);
+    // .def("pixel_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, int zoom){
+    //     return layout.pixel_to_epsg4326(coords_pixel, zoom);
+    //   },
+    //   py::arg("coords"),
+    //   py::arg("zoom")
+    // )
+    .def("pixel_to_epsg4326", [](const tiledwebmaps::Layout& layout, xt::xarray<double> coords_pixel, int zoom){
+        if (coords_pixel.dimension() == 1)
+        {
+          coords_pixel = layout.pixel_to_epsg4326(coords_pixel, zoom);
+        }
+        else if (coords_pixel.dimension() == 2)
+        {
+          if (coords_pixel.shape()[1] != 2)
+          {
+            throw std::runtime_error("coords_pixel must be a 1D or 2D array with 2 columns");
+          }
+          for (auto i = 0; i < coords_pixel.shape()[0]; ++i)
+          {
+            xti::vec2d x({coords_pixel(i, 0), coords_pixel(i, 1)});
+            x = layout.pixel_to_epsg4326(x, zoom);
+            coords_pixel(i, 0) = x[0];
+            coords_pixel(i, 1) = x[1];
+          }
+        }
+        else
+        {
+          throw std::runtime_error("coords_pixel must be a 1D or 2D array");
+        }
+        return coords_pixel;
       },
       py::arg("coords"),
       py::arg("zoom")
@@ -128,9 +156,13 @@ PYBIND11_MODULE(backend, m)
       py::arg("zoom")
     )
     .def_property_readonly("crs", &tiledwebmaps::Layout::get_crs)
-    .def_property_readonly("tile_shape", [](const tiledwebmaps::Layout& layout) -> xti::vec2i {return xt::cast<int>(layout.get_tile_shape());})
+    .def_property_readonly("tile_shape_px", &tiledwebmaps::Layout::get_tile_shape_px)
+    .def_property_readonly("tile_shape_crs", &tiledwebmaps::Layout::get_tile_shape_crs)
+    .def_property_readonly("origin_crs", &tiledwebmaps::Layout::get_origin_crs)
+    .def_property_readonly("size_crs", &tiledwebmaps::Layout::get_size_crs)
     .def_property_readonly("tile_axes", &tiledwebmaps::Layout::get_tile_axes)
     .def_property_readonly("epsg4326_to_crs", &tiledwebmaps::Layout::get_epsg4326_to_crs)
+    .def_property_readonly("crs_to_epsg4326", [](const tiledwebmaps::Layout& layout){return layout.get_epsg4326_to_crs()->inverse();})
     .def_static("XYZ", [](){
         return tiledwebmaps::Layout::XYZ(proj_context);
       },
@@ -140,16 +172,6 @@ PYBIND11_MODULE(backend, m)
       "\n"
       "Returns:\n"
       "    The XYZ tiles layout."
-    )
-    .def_static("TMS", [](){
-        return tiledwebmaps::Layout::TMS(proj_context);
-      },
-      "Creates a new TMS tiles layout.\n"
-      "\n"
-      "Uses the epsg:3857 map projection and axis order east-north.\n"
-      "\n"
-      "Returns:\n"
-      "    The TMS tiles layout."
     )
   ;
 
@@ -345,11 +367,11 @@ PYBIND11_MODULE(backend, m)
       tiledwebmaps::Layout cache_layout(
         load_layout.get_crs(),
         load_layout.get_epsg4326_to_crs(),
-        load_layout.get_tile_shape() / factor,
-        load_layout.get_tile_axes(),
-        load_layout.get_bounds_crs(),
-        load_layout.get_zoom0_scale(),
-        false
+        load_layout.get_tile_shape_px() / factor,
+        load_layout.get_tile_shape_crs(),
+        load_layout.get_origin_crs(),
+        load_layout.get_size_crs(),
+        load_layout.get_tile_axes()
       );
       return std::make_shared<tiledwebmaps::CachedTileLoader>(loader, std::make_shared<tiledwebmaps::Disk>(path, cache_layout, wait_after_last_modified));
     },
@@ -390,6 +412,18 @@ PYBIND11_MODULE(backend, m)
   );
   py::class_<tiledwebmaps::WithDefault, std::shared_ptr<tiledwebmaps::WithDefault>, tiledwebmaps::TileLoader>(m, "WithDefault", py::dynamic_attr())
     .def(py::init<std::shared_ptr<tiledwebmaps::Cache>, xti::vec3i>(),
+      py::arg("loader"),
+      py::arg("color") = xti::vec3i({255, 255, 255}),
+      "Returns a new tileloader that returns default tiles with the given color if the given tileloader does not contain a tile.\n"
+      "\n"
+      "Parameters:\n"
+      "    loader: The tileloader whose tiles will be returned if they exist.\n"
+      "    color: Color that the default tile will be filled with. Defaults to [255, 255, 255].\n"
+      "\n"
+      "Returns:\n"
+      "    A new tileloader that returns default tiles if the given tileloader does not contain a tile.\n"
+    )
+    .def(py::init<std::shared_ptr<tiledwebmaps::TileLoader>, xti::vec3i>(),
       py::arg("loader"),
       py::arg("color") = xti::vec3i({255, 255, 255}),
       "Returns a new tileloader that returns default tiles with the given color if the given tileloader does not contain a tile.\n"
