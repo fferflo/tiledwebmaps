@@ -26,7 +26,6 @@ find_package(curlcpp REQUIRED)
 
 target_link_libraries(tiledwebmaps INTERFACE
   xtensor
-  xtensor::use_xsimd
   xtensor-blas
   xtensor-interfaces::base
   xtensor-interfaces::opencv
