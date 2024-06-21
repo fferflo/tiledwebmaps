@@ -33,8 +33,6 @@ private:
   std::string m_message;
 };
 
-using Tile = xt::xtensor<uint8_t, 3>;
-
 class TileLoader
 {
 public:
@@ -45,45 +43,60 @@ public:
 
   virtual ~TileLoader() = default;
 
-  virtual Tile load(xti::vec2i tile, int zoom) = 0;
+  virtual cv::Mat load(xti::vec2i tile, int zoom) = 0;
 
   const Layout& get_layout() const
   {
     return m_layout;
   }
 
-protected:
-  template <typename TTensor>
-  Tile to_tile(TTensor&& input)
+  virtual void make_forksafe()
   {
-    xti::vec2i got_tile_shape({(int) input.shape()[0], (int) input.shape()[1]});
+  }
+
+protected:
+  void to_tile(cv::Mat& input, bool bgr_to_rgb = true) const
+  {
+    xti::vec2i got_tile_shape({(int) input.rows, (int) input.cols});
     if (got_tile_shape != m_layout.get_tile_shape_px())
     {
       throw LoadTileException("Expected tile shape " + XTI_TO_STRING(m_layout.get_tile_shape_px()) + ", got tile shape " + XTI_TO_STRING(got_tile_shape));
     }
 
-    Tile result;
-    if (input.shape()[2] == 3)
+    if (input.channels() == 3)
     {
-      result = std::move(input);
+      if (bgr_to_rgb)
+      {
+        cv::cvtColor(input, input, cv::COLOR_BGR2RGB);
+      }
     }
-    else if (input.shape()[2] == 4)
+    else if (input.channels() == 4)
     {
-      result = xt::view(std::move(input), xt::all(), xt::all(), xt::range(0, 3));
+      if (bgr_to_rgb)
+      {
+        cv::cvtColor(input, input, cv::COLOR_BGRA2RGB);
+      }
+      else
+      {
+        cv::cvtColor(input, input, cv::COLOR_BGRA2BGR);
+      }
     }
     else
     {
-      throw LoadTileException("Expected 3 or 4 color channels, got " + std::to_string(input.dimension()));
+      throw LoadTileException("Expected 3 or 4 color channels, got " + std::to_string(input.channels()));
     }
-
-    return result;
   }
 
 private:
   Layout m_layout;
 };
 
-auto load(TileLoader& tile_loader, xti::vec2i min_tile, xti::vec2i max_tile, int zoom)
+uint64_t get_time()
+{
+  return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+cv::Mat load(TileLoader& tile_loader, xti::vec2i min_tile, xti::vec2i max_tile, int zoom)
 {
   xti::vec2i tiles_num = max_tile - min_tile;
   xti::vec2i pixels_num = xt::abs(tile_loader.get_layout().tile_to_pixel(tiles_num, zoom));
@@ -93,42 +106,34 @@ auto load(TileLoader& tile_loader, xti::vec2i min_tile, xti::vec2i max_tile, int
   xti::vec2i image_min_pixel = xt::minimum(corner1, corner2);
   xti::vec2i image_max_pixel = xt::maximum(corner1, corner2);
 
-  xt::xtensor<uint8_t, 3> image({(size_t) pixels_num(0), (size_t) pixels_num(1), 3});
+  cv::Mat image(pixels_num(0), pixels_num(1), CV_8UC3, cv::Scalar(0, 0, 0));
   for (int t0 = min_tile(0); t0 < max_tile(0); t0++)
   {
     for (int t1 = min_tile(1); t1 < max_tile(1); t1++)
     {
       xti::vec2i tile({t0, t1});
-      auto tile_image = tile_loader.load(tile, zoom);
+      cv::Mat tile_image = tile_loader.load(tile, zoom);
 
       xti::vec2i corner1 = tile_loader.get_layout().tile_to_pixel(tile, zoom);
       xti::vec2i corner2 = tile_loader.get_layout().tile_to_pixel(tile + 1, zoom);
       xti::vec2i min_pixel = xt::minimum(corner1, corner2) - image_min_pixel;
       xti::vec2i max_pixel = xt::maximum(corner1, corner2) - image_min_pixel;
 
-      for (int r = min_pixel(0); r < max_pixel(0); r++)
-      {
-        int r0 = r - min_pixel(0);
-        for (int c = min_pixel(1); c < max_pixel(1); c++)
-        {
-          int c0 = c - min_pixel(1);
-          image(r, c, 0) = tile_image(r0, c0, 0);
-          image(r, c, 1) = tile_image(r0, c0, 1);
-          image(r, c, 2) = tile_image(r0, c0, 2);
-        }
-      }
+      cv::Rect roi(min_pixel(1), min_pixel(0), max_pixel(1) - min_pixel(1), max_pixel(0) - min_pixel(0));
+      cv::Mat image_roi = image(roi);
+      tile_image.copyTo(image_roi);
     }
   }
 
   return image;
 }
 
-auto load(TileLoader& tile_loader, xti::vec2i tile, int zoom)
+cv::Mat load(TileLoader& tile_loader, xti::vec2i tile, int zoom)
 {
   return tile_loader.load(tile, zoom);
 }
 
-xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2i shape, int zoom)
+cv::Mat load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2i shape, int zoom)
 {
   // Load source image
   xti::vec2f dest_pixels = shape;
@@ -139,7 +144,7 @@ xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, 
   src_pixels_per_meter = xti::vec2f({src_pixels_per_meter1, src_pixels_per_meter1}); // TODO: why is this necessary?
   xti::vec2f src_pixels = src_meters * src_pixels_per_meter;
 
-  float rotation_factor = std::fmod(cosy::radians(bearing), xt::numeric_constants<float>::PI / 2);
+  float rotation_factor = std::fmod(tiledwebmaps::radians(bearing), xt::numeric_constants<float>::PI / 2);
   if (rotation_factor < 0)
   {
     rotation_factor += xt::numeric_constants<float>::PI / 2;
@@ -156,35 +161,41 @@ xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, 
   xti::vec2i global_min_tile = xt::minimum(global_tile_corner1, global_tile_corner2);
   xti::vec2i global_max_tile = xt::maximum(global_tile_corner1, global_tile_corner2) + 1;
 
-  auto src_image = load(tile_loader, global_min_tile, global_max_tile, zoom);
+  cv::Mat src_image = load(tile_loader, global_min_tile, global_max_tile, zoom);
 
   // Anti-aliasing when downsampling
-  if (xt::amin(src_pixels_per_meter)() > 1.0 / meters_per_pixel)
+  float factor = 0.5 * xt::amin(src_pixels_per_meter)() * meters_per_pixel;
+  if (factor > 1)
   {
-    cv::Mat src_image_cv = xti::to_opencv(src_image);
-    float sigma = (xt::amin(src_pixels_per_meter)() * meters_per_pixel - 1) / 2;
-    size_t kernel_size = static_cast<size_t>(std::ceil(sigma) * 4) + 1;
-    cv::GaussianBlur(src_image_cv, src_image_cv, cv::Size(kernel_size, kernel_size), sigma, sigma);
+    float sigma = (factor - 1) / 2;
+    size_t kernel_size = static_cast<size_t>(std::ceil(sigma * 2));
+    if (kernel_size % 2 == 0)
+    {
+      kernel_size++;
+    }
+    if (kernel_size > 1)
+    {
+      cv::GaussianBlur(src_image, src_image, cv::Size(kernel_size, kernel_size), sigma, sigma);
+    }
   }
 
   // Sample dest image
   xti::vec2d global_srcimagemin_pixel = xt::minimum(tile_loader.get_layout().tile_to_pixel(global_min_tile, zoom), tile_loader.get_layout().tile_to_pixel(global_max_tile, zoom));
   xti::vec2d destim_center_pixel = xt::cast<float>(shape) / 2;
   xti::vec2d srcim_center_pixel = global_center_pixel - global_srcimagemin_pixel;
-  float angle_dest_to_src = -cosy::radians(bearing) + tile_loader.get_layout().get_crs()->get_meridian_convergence(latlon);
-
-  cosy::ScaledRigid<float, 2, false> dest_to_center;
+  float angle_dest_to_src = -tiledwebmaps::radians(bearing) + tile_loader.get_layout().get_meridian_convergence(latlon);
+  tiledwebmaps::ScaledRigid<float, 2, false> dest_to_center;
   dest_to_center.get_translation() = -destim_center_pixel;
-  cosy::ScaledRigid<float, 2, false> dest_pixels_to_meters;
+  tiledwebmaps::ScaledRigid<float, 2, false> dest_pixels_to_meters;
   dest_pixels_to_meters.get_scale() = xti::vec2f({meters_per_pixel, meters_per_pixel});
-  cosy::ScaledRigid<float, 2, false> rotate_dest_to_src;
-  rotate_dest_to_src.get_rotation() = cosy::angle_to_rotation_matrix(angle_dest_to_src); // TODO: epsg4326_to_epsg....transform_angle()?
-  cosy::ScaledRigid<float, 2, false> src_meters_to_pixels;
+  tiledwebmaps::ScaledRigid<float, 2, false> rotate_dest_to_src;
+  rotate_dest_to_src.get_rotation() = tiledwebmaps::angle_to_rotation_matrix(angle_dest_to_src); // TODO: epsg4326_to_epsg....transform_angle()?
+  tiledwebmaps::ScaledRigid<float, 2, false> src_meters_to_pixels;
   src_meters_to_pixels.get_scale() = src_pixels_per_meter;
-  cosy::ScaledRigid<float, 2, false> src_from_center;
+  tiledwebmaps::ScaledRigid<float, 2, false> src_from_center;
   src_from_center.get_translation() = srcim_center_pixel;
 
-  cosy::ScaledRigid<float, 2, false> transform = src_from_center * src_meters_to_pixels * rotate_dest_to_src * dest_pixels_to_meters * dest_to_center;
+  tiledwebmaps::ScaledRigid<float, 2, false> transform = src_from_center * src_meters_to_pixels * rotate_dest_to_src * dest_pixels_to_meters * dest_to_center;
   xti::mat2f sR = transform.get_rotation();
   for (int r = 0; r < 2; r++)
   {
@@ -210,20 +221,16 @@ xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, 
       map_x.at<float>(r, c) = sR10t0 + sR(1, 1) * point1;
     }
   }
-  cv::Mat image_cv = xti::to_opencv(src_image);
-  cv::Mat new_image_cv;
-  cv::remap(image_cv, new_image_cv, map_x, map_y, cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
-  image_cv = std::move(new_image_cv);
+  cv::Mat dest_image;
+  cv::remap(src_image, dest_image, map_x, map_y, cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
 
-  xt::xtensor<uint8_t, 3> image = xti::from_opencv<uint8_t>(std::move(image_cv));
-
-  return image;
+  return dest_image;
 }
 
-xt::xtensor<uint8_t, 3> load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2i shape)
+cv::Mat load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2i shape)
 {
-  int zoom = 0;
-  while (1.0 / xt::amax(tile_loader.get_layout().pixels_per_meter_at_latlon(latlon, zoom))() < 0.5 * meters_per_pixel)
+  int zoom = -20;
+  while (1.0 / xt::amax(tile_loader.get_layout().pixels_per_meter_at_latlon(latlon, zoom))() > meters_per_pixel)
   {
     zoom++;
   }

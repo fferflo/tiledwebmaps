@@ -1,7 +1,8 @@
-import os, pyunpack, requests, threading, time
+import os, threading, time
 import numpy as np
 
 def download(url, file, retries=100, timeout=10.0):
+    import requests
     dir = os.path.dirname(os.path.abspath(file))
     if not os.path.isdir(dir):
         os.makedirs(dir)
@@ -33,6 +34,7 @@ def download(url, file, retries=100, timeout=10.0):
         raise error
 
 def extract(src, dest=None):
+    import pyunpack
     if dest is None:
         dest = os.path.dirname(src)
     if not os.path.isdir(dest):

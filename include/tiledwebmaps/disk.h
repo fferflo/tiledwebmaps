@@ -179,7 +179,7 @@ public:
     return std::filesystem::exists(get_path(tile, zoom));
   }
 
-  Tile load(xti::vec2i tile, int zoom)
+  cv::Mat load(xti::vec2i tile, int zoom)
   {
     std::shared_lock<std::shared_mutex> lock(m_mutex.mutex);
 
@@ -198,19 +198,19 @@ public:
     }
 
     cv::Mat image_cv = safe_imread(path);
-    auto image_bgr = xti::from_opencv<uint8_t>(std::move(image_cv));
-    auto image_rgb = xt::view(std::move(image_bgr), xt::all(), xt::all(), xt::range(xt::placeholders::_, xt::placeholders::_, -1));
+
     try
     {
-      return this->to_tile(std::move(image_rgb));
+      this->to_tile(image_cv, true);
     }
     catch (LoadTileException ex)
     {
       throw LoadFileException(path, std::string("Loaded invalid tile. ") + ex.what());
     }
+    return image_cv;
   }
 
-  void save(const Tile& image, xti::vec2i tile, int zoom)
+  void save(const cv::Mat& image, xti::vec2i tile, int zoom)
   {
     std::lock_guard<std::shared_mutex> lock(m_mutex.mutex);
 
@@ -222,8 +222,9 @@ public:
       std::filesystem::create_directories(parent_path);
     }
 
-    auto image_bgr = xt::view(image, xt::all(), xt::all(), xt::range(xt::placeholders::_, xt::placeholders::_, -1));
-    if (!cv::imwrite(path.string(), xti::to_opencv(std::move(image_bgr))))
+    cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+
+    if (!cv::imwrite(path.string(), image))
     {
       throw WriteFileException(path);
     }

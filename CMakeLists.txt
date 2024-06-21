@@ -16,21 +16,21 @@ target_compile_features(tiledwebmaps INTERFACE cxx_std_17)
 
 find_package(xtl REQUIRED)
 find_package(xtensor REQUIRED)
+find_package(xtensor-io REQUIRED)
 find_package(xtensor-blas REQUIRED)
 find_package(xtensor-interfaces REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
-find_package(cosy REQUIRED)
 find_package(PROJ REQUIRED)
 find_package(CURL REQUIRED)
 find_package(curlcpp REQUIRED)
 
 target_link_libraries(tiledwebmaps INTERFACE
   xtensor
+  xtensor-io
   xtensor-blas
   xtensor-interfaces::base
   xtensor-interfaces::opencv
-  cosy::cosy
-  cosy::proj
+  PROJ::proj
   CURL::libcurl
   curlcpp::curlcpp
   ${OpenCV_LIBS}

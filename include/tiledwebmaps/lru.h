@@ -29,7 +29,7 @@ public:
     return m_key_to_tile.count(Key(tile(0), tile(1), zoom)) > 0;
   }
 
-  Tile load(xti::vec2i tile, int zoom)
+  cv::Mat load(xti::vec2i tile, int zoom)
   {
     std::lock_guard<std::mutex> guard(m_mutex);
 
@@ -44,7 +44,7 @@ public:
     return m_key_to_tile[key];
   }
 
-  void save(const Tile& image, xti::vec2i tile, int zoom)
+  void save(const cv::Mat& image, xti::vec2i tile, int zoom)
   {
     std::lock_guard<std::mutex> guard(m_mutex);
 
@@ -70,7 +70,7 @@ public:
 
 private:
   int m_size;
-  std::map<Key, Tile> m_key_to_tile;
+  std::map<Key, cv::Mat> m_key_to_tile;
   std::list<Key> m_keys;
   std::mutex m_mutex;
 };

@@ -1,23 +1,186 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <tiledwebmaps/tiledwebmaps.h>
+#include <tiledwebmaps/python.h>
 #include <xtensor-python/pytensor.hpp>
 #include <filesystem>
 
 namespace py = pybind11;
 
-thread_local std::shared_ptr<cosy::proj::Context> proj_context = std::make_shared<cosy::proj::Context>();
+thread_local std::shared_ptr<tiledwebmaps::proj::Context> proj_context = std::make_shared<tiledwebmaps::proj::Context>();
+
+thread_local std::shared_ptr<tiledwebmaps::proj::Transformer> epsg4326_to_epsg3857 = std::make_shared<tiledwebmaps::proj::Transformer>(
+  std::make_shared<tiledwebmaps::proj::CRS>(proj_context, "epsg:4326"),
+  std::make_shared<tiledwebmaps::proj::CRS>(proj_context, "epsg:3857")
+);
+thread_local std::shared_ptr<tiledwebmaps::proj::Transformer> epsg3857_to_epsg4326 = epsg4326_to_epsg3857->inverse();
 
 PYBIND11_MODULE(backend, m)
 {
+  // **********************************************************************************************
+  // ******************************************** PROJ ********************************************
+  // **********************************************************************************************
+  auto proj = m.def_submodule("proj");
+
+  py::class_<tiledwebmaps::proj::CRS, std::shared_ptr<tiledwebmaps::proj::CRS>>(proj, "CRS")
+    .def(py::init([](std::string desc){
+        return std::make_shared<tiledwebmaps::proj::CRS>(proj_context, desc);
+      }),
+      py::arg("desc")
+    )
+    .def("get_vector", &tiledwebmaps::proj::CRS::get_vector,
+      py::arg("name")
+    )
+    .def_property_readonly("area_of_use", [](const tiledwebmaps::proj::CRS& crs){
+        auto area_of_use = crs.get_area_of_use();
+        return std::make_pair(area_of_use.lower_latlon, area_of_use.upper_latlon);
+      }
+    )
+    .def(py::pickle(
+      [](const tiledwebmaps::proj::CRS& x){ // __getstate__
+        return py::make_tuple(
+          x.get_description()
+        );
+      },
+      [](py::tuple t){ // __setstate__
+        if (t.size() != 1)
+        {
+          throw std::runtime_error("Invalid state");
+        }
+        return std::make_shared<tiledwebmaps::proj::CRS>(
+          proj_context,
+          t[0].cast<std::string>()
+        );
+      }
+    ))
+  ;
+
+  py::class_<tiledwebmaps::proj::Transformer, std::shared_ptr<tiledwebmaps::proj::Transformer>>(proj, "Transformer")
+    .def(py::init([](std::string from_crs, std::string to_crs){
+        return std::make_shared<tiledwebmaps::proj::Transformer>(proj_context, from_crs, to_crs);
+      }),
+      py::arg("from_crs"),
+      py::arg("to_crs")
+    )
+    .def(py::init([](std::shared_ptr<tiledwebmaps::proj::CRS> from_crs, std::string to_crs){
+        return std::make_shared<tiledwebmaps::proj::Transformer>(proj_context, from_crs, to_crs);
+      }),
+      py::arg("from_crs"),
+      py::arg("to_crs")
+    )
+    .def(py::init([](std::string from_crs, std::shared_ptr<tiledwebmaps::proj::CRS> to_crs){
+        return std::make_shared<tiledwebmaps::proj::Transformer>(proj_context, from_crs, to_crs);
+      }),
+      py::arg("from_crs"),
+      py::arg("to_crs")
+    )
+    .def(py::init([](std::shared_ptr<tiledwebmaps::proj::CRS> from_crs, std::shared_ptr<tiledwebmaps::proj::CRS> to_crs){
+        return std::make_shared<tiledwebmaps::proj::Transformer>(proj_context, from_crs, to_crs);
+      }),
+      py::arg("from_crs"),
+      py::arg("to_crs")
+    )
+    .def("transform", [](const tiledwebmaps::proj::Transformer& transformer, xti::vec2d coords){
+        return transformer.transform(coords);
+      },
+      py::arg("coords")
+    )
+    .def("transform_inverse", [](const tiledwebmaps::proj::Transformer& transformer, xti::vec2d coords){
+        return transformer.transform_inverse(coords);
+      },
+      py::arg("coords")
+    )
+    .def("transform_angle", [](const tiledwebmaps::proj::Transformer& transformer, double angle){
+        return transformer.transform_angle(angle);
+      },
+      py::arg("angle")
+    )
+    .def("transform_angle_inverse", [](const tiledwebmaps::proj::Transformer& transformer, double angle){
+        return transformer.transform_angle_inverse(angle);
+      },
+      py::arg("angle")
+    )
+    .def("__call__", [](const tiledwebmaps::proj::Transformer& transformer, xti::vec2d coords){
+        return transformer.transform(coords);
+      },
+      py::arg("coords")
+    )
+    .def("inverse", &tiledwebmaps::proj::Transformer::inverse)
+    .def_property_readonly("from_crs", &tiledwebmaps::proj::Transformer::get_from_crs)
+    .def_property_readonly("to_crs", &tiledwebmaps::proj::Transformer::get_to_crs)
+    .def(py::pickle(
+      [](const tiledwebmaps::proj::Transformer& x){ // __getstate__
+        return py::make_tuple(
+          x.get_from_crs(),
+          x.get_to_crs()
+        );
+      },
+      [](py::tuple t){ // __setstate__
+        if (t.size() != 2)
+        {
+          throw std::runtime_error("Invalid state");
+        }
+        return std::make_shared<tiledwebmaps::proj::Transformer>(
+          proj_context,
+          t[0].cast<std::shared_ptr<tiledwebmaps::proj::CRS>>(),
+          t[1].cast<std::shared_ptr<tiledwebmaps::proj::CRS>>()
+        );
+      }
+    ))
+  ;
+
+  proj.def("eastnorthmeters_at_latlon_to_epsg3857", [](xti::vec2d latlon){
+      return tiledwebmaps::proj::eastnorthmeters_at_latlon_to_epsg3857(latlon, *epsg4326_to_epsg3857);
+    },
+    py::arg("latlon")
+  );
+  proj.def("geopose_to_epsg3857", [](xti::vec2d latlon, double bearing){
+      return tiledwebmaps::proj::geopose_to_epsg3857(latlon, bearing, *epsg4326_to_epsg3857);
+    },
+    py::arg("latlon"),
+    py::arg("bearing")
+  );
+
+  proj.attr("__setattr__")("epsg4326_to_epsg3857", epsg4326_to_epsg3857);
+  proj.attr("__setattr__")("epsg3857_to_epsg4326", epsg3857_to_epsg4326);
+
+
+
+
+  // **********************************************************************************************
+  // ***************************************** TILEDWEBMAPS ***************************************
+  // **********************************************************************************************
+  py::class_<tiledwebmaps::NamedAxes<2>>(m, "NamedAxes2")
+    .def(py::init([](std::pair<std::string, std::string> axis1, std::pair<std::string, std::string> axis2){
+        return tiledwebmaps::NamedAxes<2>({{axis1.first, axis1.second}, {axis2.first, axis2.second}});
+      }),
+      py::arg("axis1"),
+      py::arg("axis2")
+    )
+    .def("__getitem__", [](const tiledwebmaps::NamedAxes<2>& axes, size_t index){return axes[index];})
+  ;
+  m.def("NamedAxesTransformation", [](tiledwebmaps::NamedAxes<2> axes1, tiledwebmaps::NamedAxes<2> axes2) -> tiledwebmaps::Rotation<double, 2>{
+    return tiledwebmaps::NamedAxesTransformation<double, 2>(axes1, axes2);
+  });
+
+  auto geo = m.def_submodule("geo");
+  py::class_<tiledwebmaps::geo::CompassAxes, tiledwebmaps::NamedAxes<2>>(geo, "CompassAxes")
+    .def(py::init<std::string, std::string>(),
+      py::arg("axis1"),
+      py::arg("axis2")
+    )
+    .def_property_readonly("axis1", [](const tiledwebmaps::geo::CompassAxes& axes){return axes[0];})
+    .def_property_readonly("axis2", [](const tiledwebmaps::geo::CompassAxes& axes){return axes[1];})
+  ;
+
   py::class_<tiledwebmaps::Layout, std::shared_ptr<tiledwebmaps::Layout>>(m, "Layout", py::dynamic_attr())
-    .def(py::init<std::shared_ptr<cosy::proj::CRS>, xti::vec2i, xti::vec2d, xti::vec2d, std::optional<xti::vec2d>, cosy::geo::CompassAxes>(),
-      py::arg("crs") = std::make_shared<cosy::proj::CRS>("epsg:3857"),
+    .def(py::init<std::shared_ptr<tiledwebmaps::proj::CRS>, xti::vec2i, xti::vec2d, xti::vec2d, std::optional<xti::vec2d>, tiledwebmaps::geo::CompassAxes>(),
+      py::arg("crs") = std::make_shared<tiledwebmaps::proj::CRS>("epsg:3857"),
       py::arg("tile_shape_px") = xti::vec2i({256, 256}),
       py::arg("tile_shape_crs") = xti::vec2d({1.0, 1.0}),
       py::arg("origin_crs") = xti::vec2d({0.0, 0.0}),
       py::arg("size_crs") = std::optional<xti::vec2d>(),
-      py::arg("tile_axes") = cosy::geo::CompassAxes("east", "south")
+      py::arg("tile_axes") = tiledwebmaps::geo::CompassAxes("east", "south")
     )
     .def("crs_to_tile", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_crs, double scale){
         return layout.crs_to_tile(coords_crs, scale);
@@ -97,8 +260,30 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    .def("epsg4326_to_pixel", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_epsg4326, int zoom){
-        return layout.epsg4326_to_pixel(coords_epsg4326, zoom);
+    .def("epsg4326_to_pixel", [](const tiledwebmaps::Layout& layout, xt::xarray<double> coords_epsg4326, int zoom){
+        if (coords_epsg4326.dimension() == 1)
+        {
+          coords_epsg4326 = layout.epsg4326_to_pixel(coords_epsg4326, zoom);
+        }
+        else if (coords_epsg4326.dimension() == 2)
+        {
+          if (coords_epsg4326.shape()[1] != 2)
+          {
+            throw std::runtime_error("coords must be a 1D or 2D array with 2 columns");
+          }
+          for (auto i = 0; i < coords_epsg4326.shape()[0]; ++i)
+          {
+            xti::vec2d x({coords_epsg4326(i, 0), coords_epsg4326(i, 1)});
+            x = layout.epsg4326_to_pixel(x, zoom);
+            coords_epsg4326(i, 0) = x[0];
+            coords_epsg4326(i, 1) = x[1];
+          }
+        }
+        else
+        {
+          throw std::runtime_error("coords must be a 1D or 2D array");
+        }
+        return coords_epsg4326;
       },
       py::arg("coords"),
       py::arg("zoom")
@@ -109,12 +294,6 @@ PYBIND11_MODULE(backend, m)
       py::arg("coords"),
       py::arg("scale")
     )
-    // .def("pixel_to_epsg4326", [](const tiledwebmaps::Layout& layout, xti::vec2d coords_pixel, int zoom){
-    //     return layout.pixel_to_epsg4326(coords_pixel, zoom);
-    //   },
-    //   py::arg("coords"),
-    //   py::arg("zoom")
-    // )
     .def("pixel_to_epsg4326", [](const tiledwebmaps::Layout& layout, xt::xarray<double> coords_pixel, int zoom){
         if (coords_pixel.dimension() == 1)
         {
@@ -124,7 +303,7 @@ PYBIND11_MODULE(backend, m)
         {
           if (coords_pixel.shape()[1] != 2)
           {
-            throw std::runtime_error("coords_pixel must be a 1D or 2D array with 2 columns");
+            throw std::runtime_error("coords must be a 1D or 2D array with 2 columns");
           }
           for (auto i = 0; i < coords_pixel.shape()[0]; ++i)
           {
@@ -136,7 +315,7 @@ PYBIND11_MODULE(backend, m)
         }
         else
         {
-          throw std::runtime_error("coords_pixel must be a 1D or 2D array");
+          throw std::runtime_error("coords must be a 1D or 2D array");
         }
         return coords_pixel;
       },
@@ -154,6 +333,9 @@ PYBIND11_MODULE(backend, m)
       },
       py::arg("latlon"),
       py::arg("zoom")
+    )
+    .def("get_meridian_convergence", &tiledwebmaps::Layout::get_meridian_convergence,
+      py::arg("latlon")
     )
     .def_property_readonly("crs", &tiledwebmaps::Layout::get_crs)
     .def_property_readonly("tile_shape_px", &tiledwebmaps::Layout::get_tile_shape_px)
@@ -185,7 +367,9 @@ PYBIND11_MODULE(backend, m)
     )
     .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2s min_tile, xti::vec2s max_tile, int zoom){
         py::gil_scoped_release gil;
-        return tiledwebmaps::load(tile_loader, min_tile, max_tile, zoom);
+        cv::Mat image = tiledwebmaps::load(tile_loader, min_tile, max_tile, zoom);
+        xt::xtensor<uint8_t, 3> image2 = xti::from_opencv<uint8_t>(image);
+        return image2;
       },
       py::arg("min_tile"),
       py::arg("max_tile"),
@@ -193,14 +377,17 @@ PYBIND11_MODULE(backend, m)
     )
     .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2d latlon, double bearing, double meters_per_pixel, xti::vec2s shape, std::optional<int> zoom){
         py::gil_scoped_release gil;
+        cv::Mat image;
         if (zoom)
         {
-          return tiledwebmaps::load_metric(tile_loader, latlon, bearing, meters_per_pixel, shape, *zoom);
+          image = tiledwebmaps::load_metric(tile_loader, latlon, bearing, meters_per_pixel, shape, *zoom);
         }
         else
         {
-          return tiledwebmaps::load_metric(tile_loader, latlon, bearing, meters_per_pixel, shape);
+          image = tiledwebmaps::load_metric(tile_loader, latlon, bearing, meters_per_pixel, shape);
         }
+        xt::xtensor<uint8_t, 3> image2 = xti::from_opencv<uint8_t>(image);
+        return image2;
       },
       py::arg("latlon"),
       py::arg("bearing"),
@@ -219,6 +406,7 @@ PYBIND11_MODULE(backend, m)
       "    The loaded image.\n"
     )
     .def_property_readonly("layout", &tiledwebmaps::TileLoader::get_layout)
+    .def("make_forksafe", &tiledwebmaps::TileLoader::make_forksafe)
   ;
 
   py::class_<tiledwebmaps::Http, std::shared_ptr<tiledwebmaps::Http>, tiledwebmaps::TileLoader>(m, "Http")
@@ -324,6 +512,15 @@ PYBIND11_MODULE(backend, m)
       "\n"
       "Returns:\n"
       "    The created Http tileloader.\n"
+    )
+  ;
+
+  py::class_<tiledwebmaps::Bin, std::shared_ptr<tiledwebmaps::Bin>, tiledwebmaps::TileLoader>(m, "Bin")
+    .def(py::init([](std::string path, tiledwebmaps::Layout layout){
+        return tiledwebmaps::Bin(path, layout);
+      }),
+      py::arg("path"),
+      py::arg("layout") = tiledwebmaps::Layout::XYZ(proj_context)
     )
   ;
 

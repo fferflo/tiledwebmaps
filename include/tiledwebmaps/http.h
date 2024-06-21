@@ -48,7 +48,7 @@ public:
   {
   }
 
-  Tile load(xti::vec2i tile, int zoom)
+  cv::Mat load(xti::vec2i tile, int zoom)
   {
     auto lock = m_allow_multithreading ? std::unique_lock<std::mutex>() : std::unique_lock<std::mutex>(m_mutex.mutex);
 
@@ -117,16 +117,15 @@ public:
           last_ex = LoadTileException("Failed to decode downloaded image from url " + url + ". Received " + XTI_TO_STRING(data.length()) + " bytes: " + data);
           continue;
         }
-        auto image_bgr = xti::from_opencv<uint8_t>(std::move(image_cv));
-        auto image_rgb = xt::view(std::move(image_bgr), xt::all(), xt::all(), xt::range(xt::placeholders::_, xt::placeholders::_, -1));
         try
         {
-          return to_tile(std::move(image_rgb));
+          to_tile(image_cv, true);
         }
         catch (LoadTileException ex)
         {
           last_ex = LoadTileException(std::string("Downloaded invalid tile. ") + ex.what());
         }
+        return image_cv;
       }
       catch (curl::curl_easy_exception ex)
       {

@@ -1,4 +1,4 @@
-import yaml, cosy
+import yaml
 import tiledwebmaps as twm
 import numpy as np
 
@@ -40,9 +40,9 @@ def from_config(config, wait_after_error=5.0, retries=100):
         elif "uri" in values:
             del kwargs["uri"]
             layout = twm.Layout(
-                crs=cosy.proj.CRS("epsg:3857"),
+                crs=tiledwebmaps.proj.CRS("epsg:3857"),
                 tile_shape=((2 ** load_zoom_up) * 256, (2 ** load_zoom_up) * 256),
-                tile_axes=cosy.geo.CompassAxes("east", "south"),
+                tile_axes=tiledwebmaps.geo.CompassAxes("east", "south"),
             )
             tileloader = twm.Http(values["uri"], layout=layout, wait_after_error=wait_after_error, retries=retries, header=header, **kwargs)
         else:
