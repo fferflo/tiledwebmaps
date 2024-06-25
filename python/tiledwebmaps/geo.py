@@ -5,11 +5,13 @@ from tiledwebmaps.backend.geo import CompassAxes
 EARTH_RADIUS_METERS = 6.378137e6
 
 def distance(latlon1, latlon2, np=numpy):
-    latlon1 = np.radians(np.asarray(latlon1).astype("float64"))
-    latlon2 = np.radians(np.asarray(latlon2).astype("float64"))
+    def to_np(x):
+        return np.asarray(x).astype("float64")  
+    latlon1 = latlon1.astype("float64") * to_np(np.pi / 180)
+    latlon2 = latlon2.astype("float64") * to_np(np.pi / 180)
 
-    a = np.sin((latlon1[..., 0] - latlon2[..., 0]) / 2) ** 2 + np.cos(latlon1[..., 0]) * np.cos(latlon2[..., 0]) * (np.sin((latlon1[..., 1] - latlon2[..., 1]) / 2) ** 2)
-    return EARTH_RADIUS_METERS * 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+    a = np.sin((latlon1[..., 0] - latlon2[..., 0]) / to_np(2)) ** 2 + np.cos(latlon1[..., 0]) * np.cos(latlon2[..., 0]) * (np.sin((latlon1[..., 1] - latlon2[..., 1]) / to_np(2)) ** 2)
+    return to_np(EARTH_RADIUS_METERS * 2) * np.arctan2(np.sqrt(a), np.sqrt(to_np(1) - a))
 
 def bearing(latlon1, latlon2):
     latlon1 = np.radians(np.asarray(latlon1).astype("float64"))
