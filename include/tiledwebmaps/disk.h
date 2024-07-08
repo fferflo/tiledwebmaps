@@ -137,7 +137,7 @@ public:
   }
 };
 
-class Disk : public Cache
+class Disk : public TileLoader, public Cache
 {
 public:
   struct Mutex
@@ -158,8 +158,11 @@ public:
     }
   };
 
-  Disk(std::filesystem::path path, const Layout& layout, float wait_after_last_modified = 1.0)
-    : Cache(layout)
+  Disk(std::filesystem::path path, const Layout& layout, int min_zoom, int max_zoom, float wait_after_last_modified = 1.0)
+    : TileLoader(layout)
+    , Cache()
+    , m_min_zoom(min_zoom)
+    , m_max_zoom(max_zoom)
     , m_wait_after_last_modified(wait_after_last_modified)
   {
     if (path.string().find("{") == std::string::npos)
@@ -169,18 +172,40 @@ public:
     m_path = path;
   }
 
+  int get_min_zoom() const
+  {
+    return m_min_zoom;
+  }
+
+  int get_max_zoom() const
+  {
+    return m_max_zoom;
+  }
+
   std::filesystem::path get_path(xti::vec2i tile, int zoom) const
   {
+    if (zoom > m_max_zoom)
+    {
+      throw LoadTileException("Zoom level " + XTI_TO_STRING(zoom) + " is higher than the maximum zoom level " + XTI_TO_STRING(m_max_zoom) + ".");
+    }
     return replace_placeholders(m_path, this->get_layout(), tile, zoom);
   }
 
   bool contains(xti::vec2i tile, int zoom) const
   {
-    return std::filesystem::exists(get_path(tile, zoom));
+    return zoom <= m_max_zoom && std::filesystem::exists(get_path(tile, zoom));
   }
 
   cv::Mat load(xti::vec2i tile, int zoom)
   {
+    if (zoom > m_max_zoom)
+    {
+      throw LoadTileException("Zoom level " + XTI_TO_STRING(zoom) + " is higher than the maximum zoom level " + XTI_TO_STRING(m_max_zoom) + ".");
+    }
+    if (zoom < m_min_zoom)
+    {
+      throw LoadTileException("Zoom level " + XTI_TO_STRING(zoom) + " is lower than the minimum zoom level " + XTI_TO_STRING(m_min_zoom) + ".");
+    }
     std::shared_lock<std::shared_mutex> lock(m_mutex.mutex);
 
     std::filesystem::path path = get_path(tile, zoom);
@@ -212,6 +237,14 @@ public:
 
   void save(const cv::Mat& image, xti::vec2i tile, int zoom)
   {
+    if (zoom > m_max_zoom)
+    {
+      throw LoadTileException("Zoom level " + XTI_TO_STRING(zoom) + " is higher than the maximum zoom level " + XTI_TO_STRING(m_max_zoom) + ".");
+    }
+    if (zoom < m_min_zoom)
+    {
+      throw LoadTileException("Zoom level " + XTI_TO_STRING(zoom) + " is lower than the minimum zoom level " + XTI_TO_STRING(m_min_zoom) + ".");
+    }
     std::lock_guard<std::shared_mutex> lock(m_mutex.mutex);
 
     std::filesystem::path path = get_path(tile, zoom);
@@ -237,6 +270,8 @@ public:
 
 private:
   std::filesystem::path m_path;
+  int m_min_zoom;
+  int m_max_zoom;
   float m_wait_after_last_modified;
   Mutex m_mutex;
 };

@@ -130,12 +130,12 @@ PYBIND11_MODULE(backend, m)
   ;
 
   proj.def("eastnorthmeters_at_latlon_to_epsg3857", [](xti::vec2d latlon){
-      return tiledwebmaps::proj::eastnorthmeters_at_latlon_to_epsg3857(latlon, *epsg4326_to_epsg3857);
+      return tiledwebmaps::proj::eastnorthmeters_at_latlon_to_epsg3857(latlon, *epsg4326_to_epsg3857).to_matrix();
     },
     py::arg("latlon")
   );
   proj.def("geopose_to_epsg3857", [](xti::vec2d latlon, double bearing){
-      return tiledwebmaps::proj::geopose_to_epsg3857(latlon, bearing, *epsg4326_to_epsg3857);
+      return tiledwebmaps::proj::geopose_to_epsg3857(latlon, bearing, *epsg4326_to_epsg3857).to_matrix();
     },
     py::arg("latlon"),
     py::arg("bearing")
@@ -407,10 +407,14 @@ PYBIND11_MODULE(backend, m)
     )
     .def_property_readonly("layout", &tiledwebmaps::TileLoader::get_layout)
     .def("make_forksafe", &tiledwebmaps::TileLoader::make_forksafe)
+    .def("get_zoom", &tiledwebmaps::TileLoader::get_zoom,
+      py::arg("latlon"),
+      py::arg("meters_per_pixel")
+    )
   ;
 
   py::class_<tiledwebmaps::Http, std::shared_ptr<tiledwebmaps::Http>, tiledwebmaps::TileLoader>(m, "Http")
-    .def(py::init([](std::string url, tiledwebmaps::Layout layout, int retries, float wait_after_error, bool verify_ssl, std::optional<std::string> capath, std::optional<std::string> cafile, std::map<std::string, std::string> header, bool allow_multithreading){
+    .def(py::init([](std::string url, tiledwebmaps::Layout layout, int min_zoom, int max_zoom, int retries, float wait_after_error, bool verify_ssl, std::optional<std::string> capath, std::optional<std::string> cafile, std::map<std::string, std::string> header, bool allow_multithreading){
         if (!capath && !cafile)
         {
           auto ssl = py::module::import("ssl");
@@ -459,10 +463,12 @@ PYBIND11_MODULE(backend, m)
             }
           }
         }
-        return tiledwebmaps::Http(url, layout, retries, wait_after_error, verify_ssl, capath, cafile, header, allow_multithreading);
+        return tiledwebmaps::Http(url, layout, min_zoom, max_zoom, retries, wait_after_error, verify_ssl, capath, cafile, header, allow_multithreading);
       }),
       py::arg("url"),
-      py::arg("layout") = tiledwebmaps::Layout::XYZ(proj_context),
+      py::arg("layout"),
+      py::arg("min_zoom"),
+      py::arg("max_zoom"),
       py::arg("retries") = 10,
       py::arg("wait_after_error") = 1.5,
       py::arg("verify_ssl") = true,
@@ -501,6 +507,8 @@ PYBIND11_MODULE(backend, m)
       "\n"
       "Parameters:\n"
       "    url: The string url with placeholders.\n"
+      "    min_zoom: The minimum zoom level that the tileloader will load.\n"
+      "    max_zoom: The maximum zoom level that the tileloader will load.\n"
       "    layout: The layout of the tiles loaded by this tileloader. Defaults to tiledwebmaps.Layout.XYZ().\n"
       "    retries: Number of times that the http request will be retried before throwing an error. Defaults to 10.\n"
       "    wait_after_error: Seconds to wait before retrying the http request. Defaults to 1.5.\n"
@@ -524,8 +532,11 @@ PYBIND11_MODULE(backend, m)
     )
   ;
 
-  py::class_<tiledwebmaps::Cache, std::shared_ptr<tiledwebmaps::Cache>, tiledwebmaps::TileLoader>(m, "Cache")
-    .def_property_readonly("layout", [](const tiledwebmaps::Cache& cache){return cache.get_layout();})
+  py::class_<tiledwebmaps::Cache, std::shared_ptr<tiledwebmaps::Cache>>(m, "Cache")
+    .def("load", &tiledwebmaps::Cache::load,
+      py::arg("tile"),
+      py::arg("zoom")
+    )
     .def("save", &tiledwebmaps::Cache::save,
       py::arg("image"),
       py::arg("tile"),
@@ -541,16 +552,20 @@ PYBIND11_MODULE(backend, m)
     .def_property_readonly("cache", &tiledwebmaps::CachedTileLoader::get_cache)
   ;
 
-  py::class_<tiledwebmaps::Disk, std::shared_ptr<tiledwebmaps::Disk>, tiledwebmaps::Cache>(m, "Disk", py::dynamic_attr())
-    .def(py::init<std::string, tiledwebmaps::Layout, float>(),
+  py::class_<tiledwebmaps::Disk, std::shared_ptr<tiledwebmaps::Disk>, tiledwebmaps::TileLoader, tiledwebmaps::Cache>(m, "Disk", py::dynamic_attr())
+    .def(py::init<std::string, tiledwebmaps::Layout, int, int, float>(),
       py::arg("path"),
-      py::arg("layout") = tiledwebmaps::Layout::XYZ(proj_context),
+      py::arg("layout"),
+      py::arg("min_zoom"),
+      py::arg("max_zoom"),
       py::arg("wait_after_last_modified") = 1.0,
       "Returns a new tileloader that loads tiles from disk.\n"
       "\n"
       "Parameters:\n"
       "    path: The path to the saved tiles, including placeholders. If it does not include placeholders, appends \"/zoom/x/y.jpg\".\n"
       "    layout: The layout of the tiles loaded by this tileloader. Defaults to tiledwebmaps.Layout.XYZ().\n"
+      "    min_zoom: The minimum zoom level that the tileloader will load.\n"
+      "    max_zoom: The maximum zoom level that the tileloader will load.\n"
       "    wait_after_last_modified: Waits this many seconds after the last modification of a tile before loading it. Defaults to 1.0.\n"
       "\n"
       "Returns:\n"
@@ -558,43 +573,29 @@ PYBIND11_MODULE(backend, m)
     )
     .def_property_readonly("path", [](const tiledwebmaps::Disk& disk){return disk.get_path().string();})
   ;
-  m.def("DiskCached", [](std::shared_ptr<tiledwebmaps::TileLoader> loader, std::string path, float wait_after_last_modified, int load_zoom_up){
-      int factor = (1 << load_zoom_up);
-      tiledwebmaps::Layout load_layout = loader->get_layout();
-      tiledwebmaps::Layout cache_layout(
-        load_layout.get_crs(),
-        load_layout.get_epsg4326_to_crs(),
-        load_layout.get_tile_shape_px() / factor,
-        load_layout.get_tile_shape_crs(),
-        load_layout.get_origin_crs(),
-        load_layout.get_size_crs(),
-        load_layout.get_tile_axes()
-      );
-      return std::make_shared<tiledwebmaps::CachedTileLoader>(loader, std::make_shared<tiledwebmaps::Disk>(path, cache_layout, wait_after_last_modified));
+  m.def("DiskCached", [](std::shared_ptr<tiledwebmaps::TileLoader> loader, std::string path, float wait_after_last_modified){
+      return std::make_shared<tiledwebmaps::CachedTileLoader>(loader, std::make_shared<tiledwebmaps::Disk>(path, loader->get_layout(), loader->get_min_zoom(), loader->get_max_zoom(), wait_after_last_modified));
     },
     py::arg("loader"),
     py::arg("path"),
     py::arg("wait_after_last_modified") = 1.0,
-    py::arg("load_zoom_up") = 0,
     "Returns a new tileloader that caches tiles from the given tileloader on disk.\n"
     "\n"
     "Parameters:\n"
     "    loader: The tileloader whose tiles will be cached.\n"
     "    path: The path to where the cached tiles will be saved, including placeholders. If it does not include placeholders, appends \"/zoom/x/y.jpg\".\n"
     "    wait_after_last_modified: Waits this many seconds after the last modification of a tile before loading it. Defaults to 1.0.\n"
-    "    load_zoom_up: Load tiles at this many zoom levels coarser on cache failure. Defaults to 0.\n"
     "\n"
     "Returns:\n"
     "    A new tileloader that caches tiles from the given tileloader on disk.\n"
   );
   py::class_<tiledwebmaps::LRU, std::shared_ptr<tiledwebmaps::LRU>, tiledwebmaps::Cache>(m, "LRU", py::dynamic_attr())
-    .def(py::init<tiledwebmaps::Layout, int>(),
-      py::arg("layout"),
+    .def(py::init<int>(),
       py::arg("size")
     )
   ;
   m.def("LRUCached", [](std::shared_ptr<tiledwebmaps::TileLoader> loader, int size){
-      return std::make_shared<tiledwebmaps::CachedTileLoader>(loader, std::make_shared<tiledwebmaps::LRU>(loader->get_layout(), size));
+      return std::make_shared<tiledwebmaps::CachedTileLoader>(loader, std::make_shared<tiledwebmaps::LRU>(size));
     },
     py::arg("loader"),
     py::arg("size"),
@@ -608,7 +609,7 @@ PYBIND11_MODULE(backend, m)
     "    A new tileloader that caches tiles from the given tileloader in a LRU cache.\n"
   );
   py::class_<tiledwebmaps::WithDefault, std::shared_ptr<tiledwebmaps::WithDefault>, tiledwebmaps::TileLoader>(m, "WithDefault", py::dynamic_attr())
-    .def(py::init<std::shared_ptr<tiledwebmaps::Cache>, xti::vec3i>(),
+    .def(py::init<std::shared_ptr<tiledwebmaps::TileLoader>, xti::vec3i>(),
       py::arg("loader"),
       py::arg("color") = xti::vec3i({255, 255, 255}),
       "Returns a new tileloader that returns default tiles with the given color if the given tileloader does not contain a tile.\n"

@@ -54,6 +54,20 @@ public:
   {
   }
 
+  virtual int get_min_zoom() const = 0;
+
+  virtual int get_max_zoom() const = 0;
+
+  int get_zoom(xti::vec2d latlon, float meters_per_pixel) const
+  {
+    int zoom = get_min_zoom();
+    while (zoom < get_max_zoom() && 1.0 / xt::amax(get_layout().pixels_per_meter_at_latlon(latlon, zoom))() > meters_per_pixel)
+    {
+      zoom++;
+    }
+    return zoom;
+  }
+
 protected:
   void to_tile(cv::Mat& input, bool bgr_to_rgb = true) const
   {
@@ -96,13 +110,13 @@ uint64_t get_time()
   return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-cv::Mat load(TileLoader& tile_loader, xti::vec2i min_tile, xti::vec2i max_tile, int zoom)
+cv::Mat load(TileLoader& tileloader, xti::vec2i min_tile, xti::vec2i max_tile, int zoom)
 {
   xti::vec2i tiles_num = max_tile - min_tile;
-  xti::vec2i pixels_num = xt::abs(tile_loader.get_layout().tile_to_pixel(tiles_num, zoom));
+  xti::vec2i pixels_num = xt::abs(tileloader.get_layout().tile_to_pixel(tiles_num, zoom));
 
-  xti::vec2i corner1 = tile_loader.get_layout().tile_to_pixel(min_tile, zoom);
-  xti::vec2i corner2 = tile_loader.get_layout().tile_to_pixel(max_tile, zoom);
+  xti::vec2i corner1 = tileloader.get_layout().tile_to_pixel(min_tile, zoom);
+  xti::vec2i corner2 = tileloader.get_layout().tile_to_pixel(max_tile, zoom);
   xti::vec2i image_min_pixel = xt::minimum(corner1, corner2);
   xti::vec2i image_max_pixel = xt::maximum(corner1, corner2);
 
@@ -112,10 +126,10 @@ cv::Mat load(TileLoader& tile_loader, xti::vec2i min_tile, xti::vec2i max_tile, 
     for (int t1 = min_tile(1); t1 < max_tile(1); t1++)
     {
       xti::vec2i tile({t0, t1});
-      cv::Mat tile_image = tile_loader.load(tile, zoom);
+      cv::Mat tile_image = tileloader.load(tile, zoom);
 
-      xti::vec2i corner1 = tile_loader.get_layout().tile_to_pixel(tile, zoom);
-      xti::vec2i corner2 = tile_loader.get_layout().tile_to_pixel(tile + 1, zoom);
+      xti::vec2i corner1 = tileloader.get_layout().tile_to_pixel(tile, zoom);
+      xti::vec2i corner2 = tileloader.get_layout().tile_to_pixel(tile + 1, zoom);
       xti::vec2i min_pixel = xt::minimum(corner1, corner2) - image_min_pixel;
       xti::vec2i max_pixel = xt::maximum(corner1, corner2) - image_min_pixel;
 
@@ -128,18 +142,18 @@ cv::Mat load(TileLoader& tile_loader, xti::vec2i min_tile, xti::vec2i max_tile, 
   return image;
 }
 
-cv::Mat load(TileLoader& tile_loader, xti::vec2i tile, int zoom)
+cv::Mat load(TileLoader& tileloader, xti::vec2i tile, int zoom)
 {
-  return tile_loader.load(tile, zoom);
+  return tileloader.load(tile, zoom);
 }
 
-cv::Mat load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2i shape, int zoom)
+cv::Mat load_metric(TileLoader& tileloader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2i shape, int zoom)
 {
   // Load source image
   xti::vec2f dest_pixels = shape;
   xti::vec2f dest_meters = dest_pixels * meters_per_pixel;
   xti::vec2f src_meters = dest_meters;
-  xti::vec2f src_pixels_per_meter = tile_loader.get_layout().pixels_per_meter_at_latlon(latlon, zoom);
+  xti::vec2f src_pixels_per_meter = tileloader.get_layout().pixels_per_meter_at_latlon(latlon, zoom);
   float src_pixels_per_meter1 = 0.5 * (src_pixels_per_meter(0) + src_pixels_per_meter(1));
   src_pixels_per_meter = xti::vec2f({src_pixels_per_meter1, src_pixels_per_meter1}); // TODO: why is this necessary?
   xti::vec2f src_pixels = src_meters * src_pixels_per_meter;
@@ -152,16 +166,16 @@ cv::Mat load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, f
   rotation_factor = std::sqrt(2.0f) * std::sin(rotation_factor + xt::numeric_constants<float>::PI / 4);
   src_pixels = src_pixels * rotation_factor;
 
-  xti::vec2d global_center_pixel = tile_loader.get_layout().epsg4326_to_pixel(latlon, zoom);
+  xti::vec2d global_center_pixel = tileloader.get_layout().epsg4326_to_pixel(latlon, zoom);
   xti::vec2d global_min_pixel = global_center_pixel - src_pixels / 2;
   xti::vec2d global_max_pixel = global_center_pixel + src_pixels / 2;
 
-  xti::vec2i global_tile_corner1 = tile_loader.get_layout().pixel_to_tile(global_min_pixel, zoom);
-  xti::vec2i global_tile_corner2 = tile_loader.get_layout().pixel_to_tile(global_max_pixel, zoom);
+  xti::vec2i global_tile_corner1 = tileloader.get_layout().pixel_to_tile(global_min_pixel, zoom);
+  xti::vec2i global_tile_corner2 = tileloader.get_layout().pixel_to_tile(global_max_pixel, zoom);
   xti::vec2i global_min_tile = xt::minimum(global_tile_corner1, global_tile_corner2);
   xti::vec2i global_max_tile = xt::maximum(global_tile_corner1, global_tile_corner2) + 1;
 
-  cv::Mat src_image = load(tile_loader, global_min_tile, global_max_tile, zoom);
+  cv::Mat src_image = load(tileloader, global_min_tile, global_max_tile, zoom);
 
   // Anti-aliasing when downsampling
   float factor = 0.5 * xt::amin(src_pixels_per_meter)() * meters_per_pixel;
@@ -180,10 +194,10 @@ cv::Mat load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, f
   }
 
   // Sample dest image
-  xti::vec2d global_srcimagemin_pixel = xt::minimum(tile_loader.get_layout().tile_to_pixel(global_min_tile, zoom), tile_loader.get_layout().tile_to_pixel(global_max_tile, zoom));
+  xti::vec2d global_srcimagemin_pixel = xt::minimum(tileloader.get_layout().tile_to_pixel(global_min_tile, zoom), tileloader.get_layout().tile_to_pixel(global_max_tile, zoom));
   xti::vec2d destim_center_pixel = xt::cast<float>(shape) / 2;
   xti::vec2d srcim_center_pixel = global_center_pixel - global_srcimagemin_pixel;
-  float angle_dest_to_src = -tiledwebmaps::radians(bearing) + tile_loader.get_layout().get_meridian_convergence(latlon);
+  float angle_dest_to_src = -tiledwebmaps::radians(bearing) + tileloader.get_layout().get_meridian_convergence(latlon);
   tiledwebmaps::ScaledRigid<float, 2, false> dest_to_center;
   dest_to_center.get_translation() = -destim_center_pixel;
   tiledwebmaps::ScaledRigid<float, 2, false> dest_pixels_to_meters;
@@ -227,14 +241,9 @@ cv::Mat load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, f
   return dest_image;
 }
 
-cv::Mat load_metric(TileLoader& tile_loader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2i shape)
+cv::Mat load_metric(TileLoader& tileloader, xti::vec2d latlon, float bearing, float meters_per_pixel, xti::vec2i shape)
 {
-  int zoom = -20;
-  while (1.0 / xt::amax(tile_loader.get_layout().pixels_per_meter_at_latlon(latlon, zoom))() > meters_per_pixel)
-  {
-    zoom++;
-  }
-  return load_metric(tile_loader, latlon, bearing, meters_per_pixel, shape, zoom);
+  return load_metric(tileloader, latlon, bearing, meters_per_pixel, shape, tileloader.get_zoom(latlon, meters_per_pixel));
 }
 
 std::string replace_placeholders(std::string url, const Layout& layout, xti::vec2i tile, int zoom)

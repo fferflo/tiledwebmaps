@@ -18,8 +18,8 @@ class LRU : public Cache
 public:
   using Key = std::tuple<int, int, int>; // tile-x, tile-y, zoom
 
-  LRU(const Layout& layout, int size)
-    : Cache(layout)
+  LRU(int size)
+    : Cache()
     , m_size(size)
   {
   }

@@ -1,11 +1,11 @@
 import os
+new_proj_data = os.path.join(os.path.dirname(__file__), "proj_data")
 if "PROJ_DATA" in os.environ:
-    print(f"Warning from cosy: Environment variable PROJ_DATA already set to {os.environ['PROJ_DATA']}, overwriting")
-os.environ["PROJ_DATA"] = os.path.join(os.path.dirname(__file__), "proj_data")
+    print(f"Warning: Environment variable PROJ_DATA already set to {os.environ['PROJ_DATA']}, overwriting it with {new_proj_data}")
+os.environ["PROJ_DATA"] = new_proj_data
 
 import yaml
 from .backend import Layout, TileLoader, Http, Disk, DiskCached, LRU, LRUCached, WithDefault, Bin, proj
-from .config import from_config
 from . import geo
 from . import presets
 from .presets import *
@@ -63,10 +63,13 @@ def from_yaml(path, wait_after_last_modified=1.0):
             path2 = "{zoom}/{x}/{y}.jpg"
         path = os.path.join(os.path.dirname(path), path2)
 
+        min_zoom = cfg["min_zoom"]
+        max_zoom = cfg["max_zoom"]
+
         if "url" in cfg:
-            tileloader = Http(cfg["url"], layout)
+            tileloader = Http(cfg["url"], layout=layout, min_zoom=min_zoom, max_zoom=max_zoom)
             tileloader = DiskCached(tileloader, path, wait_after_last_modified=wait_after_last_modified)
         else:
-            tileloader = Disk(path=path, layout=layout, wait_after_last_modified=wait_after_last_modified)
+            tileloader = Disk(path=path, layout=layout, min_zoom=min_zoom, max_zoom=max_zoom, wait_after_last_modified=wait_after_last_modified)
 
         return tileloader

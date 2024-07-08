@@ -18,13 +18,10 @@ public:
   }
 };
 
-class Cache : public TileLoader
+class Cache
 {
 public:
-  Cache(const Layout& layout)
-    : TileLoader(layout)
-  {
-  }
+  virtual cv::Mat load(xti::vec2i tile, int zoom) = 0;
 
   virtual void save(const cv::Mat& image, xti::vec2i tile, int zoom) = 0;
 
@@ -35,22 +32,20 @@ class CachedTileLoader : public TileLoader
 {
 public:
   CachedTileLoader(std::shared_ptr<TileLoader> loader, std::shared_ptr<Cache> cache)
-    : TileLoader(cache->get_layout())
+    : TileLoader(loader->get_layout())
     , m_cache(cache)
     , m_loader(loader)
   {
-    xti::vec2i cache_tile_shape = cache->get_layout().get_tile_shape_px();
-    xti::vec2i loader_tile_shape = loader->get_layout().get_tile_shape_px(); // can be larger than cache tile shape
-    
-    if (!xt::all(xt::equal(loader_tile_shape / cache_tile_shape * cache_tile_shape, loader_tile_shape)))
-    {
-      throw std::runtime_error("Cache tile shape must be a whole multiple of loader tile shape");
-    }
+  }
 
-    if (cache_tile_shape(0) != loader_tile_shape(0) || cache_tile_shape(1) != loader_tile_shape(1))
-    {
-      throw std::runtime_error("Cache tile shape must be equal to loader tile shape");
-    }
+  int get_min_zoom() const
+  {
+    return m_loader->get_min_zoom();
+  }
+
+  int get_max_zoom() const
+  {
+    return m_loader->get_max_zoom();
   }
 
   cv::Mat load(xti::vec2i tile_coord, int zoom)
@@ -79,7 +74,6 @@ public:
   virtual void make_forksafe()
   {
     m_loader->make_forksafe();
-    m_cache->make_forksafe();
   }
 
 private:
@@ -97,8 +91,26 @@ public:
   {
   }
 
+  int get_min_zoom() const
+  {
+    return m_tileloader->get_min_zoom();
+  }
+
+  int get_max_zoom() const
+  {
+    return m_tileloader->get_max_zoom();
+  }
+
   cv::Mat load(xti::vec2i tile_coord, int zoom)
   {
+    if (zoom > get_max_zoom())
+    {
+      throw LoadTileException("Zoom level " + XTI_TO_STRING(zoom) + " is higher than the maximum zoom level " + XTI_TO_STRING(get_max_zoom()) + ".");
+    }
+    if (zoom < get_min_zoom())
+    {
+      throw LoadTileException("Zoom level " + XTI_TO_STRING(zoom) + " is lower than the minimum zoom level " + XTI_TO_STRING(get_min_zoom()) + ".");
+    }
     try
     {
       return m_tileloader->load(tile_coord, zoom);

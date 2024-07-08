@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-import argparse, os, requests, tqdm, pandas, pyunpack, cosy, shutil, multiprocessing
+import argparse, os, requests, tqdm, pandas, pyunpack, shutil, multiprocessing
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--path", type=str, required=True)
 parser.add_argument("--shape", type=int, default=None)
-parser.add_argument("--workers", type=int, default=1)
+parser.add_argument("--workers", type=int, default=32)
 args = parser.parse_args()
 
 import tiledwebmaps as twm
@@ -14,6 +14,7 @@ from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
 import tinypl as pl
 import imageio.v2 as imageio
+from openjpeg import decode
 
 download_path = os.path.join(args.path, "download")
 if not os.path.exists(download_path):
@@ -21,7 +22,7 @@ if not os.path.exists(download_path):
 
 
 
-url = "https://www.opengeodata.nrw.de/produkte/geobasis/lusat/dop/dop_jp2_f10/dop_meta.zip"
+url = "https://www.opengeodata.nrw.de/produkte/geobasis/lusat/akt/dop/dop_jp2_f10/dop_meta.zip"
 metafile = os.path.join(download_path, "dop_meta.zip")
 twm.util.download(url, metafile)
 twm.util.extract(metafile, download_path)
@@ -61,39 +62,44 @@ else:
     if partition * args.shape != 10000:
         print("--shape must be a divisor of 10000")
         sys.exit(-1)
+
 shape = (10000 // partition, 10000 // partition)
+tile_shape_crs = [1000.0 / partition, 1000.0 / partition]
 
 layout = twm.Layout(
-    crs=cosy.proj.CRS("epsg:25832"),
-    tile_shape=shape,
-    tile_axes=cosy.geo.CompassAxes("east", "north"),
-    bounds_crs=([0.0, 0.0], [10000000.0, 10000000.0]),
-    zoom0_scale=0.001 * partition,
+    crs=twm.proj.CRS("epsg:25832"),
+    tile_shape_px=shape,
+    tile_shape_crs=tile_shape_crs,
+    tile_axes=twm.geo.CompassAxes("east", "north"),
 )
 
 import yaml
 layout_yaml = {
     "crs": "epsg:25832",
-    "tile_shape": [shape[0], shape[1]],
+    "tile_shape_px": [shape[0], shape[1]],
+    "tile_shape_crs": tile_shape_crs,
     "tile_axes": ["east", "north"],
-    "zoom0_scale": 0.001 * partition,
-    "path": "{zoom}/{x}/{y}.jpg"
+    "path": "{zoom}/{x}/{y}.jpg",
+    "min_zoom": 0,
+    "max_zoom": 0,
 }
 with open(os.path.join(args.path, "layout.yaml"), "w") as f:
     yaml.dump(layout_yaml, f, default_flow_style=False)
 
 print(f"Partitioning into {partition} tiles per side")
 
-utm_to_epsg4326 = cosy.proj.Transformer("epsg:25832", "epsg:4326")
+utm_to_epsg4326 = twm.proj.Transformer("epsg:25832", "epsg:4326")
 
 
 
 pipe = lines
+pipe = pl.thread.mutex(pipe)
+
 lock = multiprocessing.Lock()
 lock2 = multiprocessing.Lock()
 @pl.unpack
 def process(name, lower_utm):
-    url = f"https://www.opengeodata.nrw.de/produkte/geobasis/lusat/dop/dop_jp2_f10/{name}.jp2"
+    url = f"https://www.opengeodata.nrw.de/produkte/geobasis/lusat/akt/dop/dop_jp2_f10/{name}.jp2"
 
     imagefile = os.path.join(download_path, f"{name}.jp2")
     metafile = imagefile.replace(".jp2", ".done")
@@ -101,8 +107,10 @@ def process(name, lower_utm):
     if not os.path.isfile(metafile) or os.path.isfile(imagefile):
         with lock:
             twm.util.download(url, imagefile)
+
         try:
-            image = imageio.imread(imagefile)[:, :, :3]
+            with open(imagefile, "rb") as f:
+                image = decode(f.read())[:, :, :3]
         except Exception as e:
             print(f"Could not read {imagefile}")
             print(e)
@@ -130,3 +138,5 @@ for _ in tqdm.tqdm(pipe, total=len(lines)):
     pass
 
 shutil.rmtree(download_path)
+
+twm.util.add_zooms(args.path, workers=args.workers)

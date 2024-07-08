@@ -40,6 +40,9 @@ public:
     {
       m_tiles[std::make_tuple(zoom(i), x(i), y(i))] = std::make_tuple(offset(i), offset(i + 1) - offset(i));
     }
+
+    m_min_zoom = xt::amin(zoom)();
+    m_max_zoom = xt::amax(zoom)();
   }
 
   Bin(const Bin& other)
@@ -103,8 +106,26 @@ public:
     }
   }
 
+  int get_min_zoom() const
+  {
+    return m_min_zoom;
+  }
+
+  int get_max_zoom() const
+  {
+    return m_max_zoom;
+  }
+
   cv::Mat load(xti::vec2i tile, int zoom)
   {
+    if (zoom > m_max_zoom)
+    {
+      throw LoadTileException("Zoom level " + XTI_TO_STRING(zoom) + " is higher than the maximum zoom level " + XTI_TO_STRING(m_max_zoom) + ".");
+    }
+    if (zoom < m_min_zoom)
+    {
+      throw LoadTileException("Zoom level " + XTI_TO_STRING(zoom) + " is lower than the minimum zoom level " + XTI_TO_STRING(m_min_zoom) + ".");
+    }
     auto it = m_tiles.find(std::make_tuple(zoom, tile[0], tile[1]));
     if (it == m_tiles.end())
     {
@@ -163,6 +184,8 @@ private:
   std::filesystem::path m_path;
   FILE* m_file_pointer;
   std::map<std::tuple<int64_t, int64_t, int64_t>, std::tuple<int64_t, int64_t>> m_tiles;
+  int m_min_zoom;
+  int m_max_zoom;
   std::mutex m_mutex;
 };
 

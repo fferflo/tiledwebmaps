@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-import argparse, os, requests, tqdm, pyunpack, cosy, shutil, sys, multiprocessing
+import argparse, os, requests, tqdm, pyunpack, shutil, sys, multiprocessing
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--path", type=str, required=True)
 parser.add_argument("--shape", type=int, default=None)
-parser.add_argument("--workers", type=int, default=1)
+parser.add_argument("--workers", type=int, default=32)
 args = parser.parse_args()
 
 import tiledwebmaps as twm
@@ -36,23 +36,26 @@ else:
     if partition * args.shape != 5000:
         print("--shape must be a divisor of 5000")
         sys.exit(-1)
+
 shape = (5000 // partition, 5000 // partition)
+tile_shape_crs = [1000.0 / partition, 1000.0 / partition]
 
 layout = twm.Layout(
-    crs=cosy.proj.CRS("epsg:25833"),
-    tile_shape=shape,
-    tile_axes=cosy.geo.CompassAxes("east", "north"),
-    bounds_crs=([0.0, 0.0], [10000000.0, 10000000.0]),
-    zoom0_scale=0.01 / 10 * partition,
+    crs=twm.proj.CRS("epsg:25833"),
+    tile_shape_px=shape,
+    tile_shape_crs=tile_shape_crs,
+    tile_axes=twm.geo.CompassAxes("east", "north"),
 )
 
 import yaml
 layout_yaml = {
     "crs": "epsg:25833",
-    "tile_shape": [shape[0], shape[1]],
+    "tile_shape_px": [shape[0], shape[1]],
+    "tile_shape_crs": tile_shape_crs,
     "tile_axes": ["east", "north"],
-    "zoom0_scale": 0.01 / 10 * partition,
-    "path": "{zoom}/{x}/{y}.jpg"
+    "path": "{zoom}/{x}/{y}.jpg",
+    "min_zoom": 0,
+    "max_zoom": 0,
 }
 with open(os.path.join(args.path, "layout.yaml"), "w") as f:
     yaml.dump(layout_yaml, f, default_flow_style=False)
@@ -60,9 +63,11 @@ with open(os.path.join(args.path, "layout.yaml"), "w") as f:
 print(f"Partitioning into {partition} tiles per side")
 
 
-utm_to_epsg4326 = cosy.proj.Transformer("epsg:25833", "epsg:4326")
+utm_to_epsg4326 = twm.proj.Transformer("epsg:25833", "epsg:4326")
 
 pipe = urls
+pipe = pl.thread.mutex(pipe)
+
 lock = multiprocessing.Lock()
 lock2 = multiprocessing.Lock()
 def process(url):
@@ -97,3 +102,5 @@ for _ in tqdm.tqdm(pipe, total=len(urls)):
     pass
 
 shutil.rmtree(download_path)
+
+twm.util.add_zooms(args.path, workers=args.workers)
