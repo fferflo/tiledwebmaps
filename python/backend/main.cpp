@@ -360,7 +360,9 @@ PYBIND11_MODULE(backend, m)
   py::class_<tiledwebmaps::TileLoader, std::shared_ptr<tiledwebmaps::TileLoader>>(m, "TileLoader", py::dynamic_attr())
     .def("load", [](tiledwebmaps::TileLoader& tile_loader, xti::vec2s tile, int zoom){
         py::gil_scoped_release gil;
-        return tile_loader.load(tile, zoom);
+        cv::Mat image = tile_loader.load(tile, zoom);
+        xt::xtensor<uint8_t, 3> image2 = xti::from_opencv<uint8_t>(image);
+        return image2;
       },
       py::arg("tile"),
       py::arg("zoom")
@@ -411,6 +413,8 @@ PYBIND11_MODULE(backend, m)
       py::arg("latlon"),
       py::arg("meters_per_pixel")
     )
+    .def_property_readonly("max_zoom", &tiledwebmaps::TileLoader::get_max_zoom)
+    .def_property_readonly("min_zoom", &tiledwebmaps::TileLoader::get_min_zoom)
   ;
 
   py::class_<tiledwebmaps::Http, std::shared_ptr<tiledwebmaps::Http>, tiledwebmaps::TileLoader>(m, "Http")
@@ -609,18 +613,6 @@ PYBIND11_MODULE(backend, m)
     "    A new tileloader that caches tiles from the given tileloader in a LRU cache.\n"
   );
   py::class_<tiledwebmaps::WithDefault, std::shared_ptr<tiledwebmaps::WithDefault>, tiledwebmaps::TileLoader>(m, "WithDefault", py::dynamic_attr())
-    .def(py::init<std::shared_ptr<tiledwebmaps::TileLoader>, xti::vec3i>(),
-      py::arg("loader"),
-      py::arg("color") = xti::vec3i({255, 255, 255}),
-      "Returns a new tileloader that returns default tiles with the given color if the given tileloader does not contain a tile.\n"
-      "\n"
-      "Parameters:\n"
-      "    loader: The tileloader whose tiles will be returned if they exist.\n"
-      "    color: Color that the default tile will be filled with. Defaults to [255, 255, 255].\n"
-      "\n"
-      "Returns:\n"
-      "    A new tileloader that returns default tiles if the given tileloader does not contain a tile.\n"
-    )
     .def(py::init<std::shared_ptr<tiledwebmaps::TileLoader>, xti::vec3i>(),
       py::arg("loader"),
       py::arg("color") = xti::vec3i({255, 255, 255}),

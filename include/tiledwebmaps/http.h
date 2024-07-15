@@ -144,6 +144,7 @@ public:
         catch (LoadTileException ex)
         {
           last_ex = LoadTileException(std::string("Downloaded invalid tile. ") + ex.what());
+          continue;
         }
         return image_cv;
       }

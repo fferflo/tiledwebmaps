@@ -2,12 +2,9 @@ import os
 import threading
 import time
 import numpy as np
-import cv2
 import tiledwebmaps as twm
 import multiprocessing
-import tinypl as pl
 import yaml
-import tqdm
 
 def download(url, file, retries=100, timeout=10.0):
     import requests
@@ -113,6 +110,9 @@ class Ratelimit:
 
 def add_zooms(path, min_zoom=None, workers=16, min_tiles=8):
     print(f"Adding zoom levels to tiles at {path}")
+    import cv2
+    import tinypl as pl
+    import tqdm
     zooms = []
     for z in os.listdir(path):
         try:

@@ -30,6 +30,8 @@ setup(
             "tinypl",
             "beautifulsoup4",
             "pylibjpeg-openjpeg",
+            "imagecodecs",
+            "opencv-python",
         ],
     },
     url="https://github.com/fferflo/tiledwebmaps",

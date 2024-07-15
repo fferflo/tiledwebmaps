@@ -41,7 +41,7 @@ public:
     }
     m_keys.erase(key_it);
     m_keys.push_back(key);
-    return m_key_to_tile[key];
+    return m_key_to_tile[key].clone();
   }
 
   void save(const cv::Mat& image, xti::vec2i tile, int zoom)
@@ -55,7 +55,7 @@ public:
       m_keys.erase(key_it);
     }
     m_keys.push_back(key);
-    m_key_to_tile[key] = image;
+    m_key_to_tile[key] = image.clone();
     if (m_keys.size() > m_size)
     {
       m_key_to_tile.erase(m_key_to_tile.find(m_keys.front()));

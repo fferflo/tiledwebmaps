@@ -61,7 +61,7 @@ public:
   int get_zoom(xti::vec2d latlon, float meters_per_pixel) const
   {
     int zoom = get_min_zoom();
-    while (zoom < get_max_zoom() && 1.0 / xt::amax(get_layout().pixels_per_meter_at_latlon(latlon, zoom))() > meters_per_pixel)
+    while (zoom < get_max_zoom() && 1.0 / xt::amax(get_layout().pixels_per_meter_at_latlon(latlon, zoom))() >= 0.5 * meters_per_pixel)
     {
       zoom++;
     }
@@ -177,20 +177,11 @@ cv::Mat load_metric(TileLoader& tileloader, xti::vec2d latlon, float bearing, fl
 
   cv::Mat src_image = load(tileloader, global_min_tile, global_max_tile, zoom);
 
-  // Anti-aliasing when downsampling
-  float factor = 0.5 * xt::amin(src_pixels_per_meter)() * meters_per_pixel;
-  if (factor > 1)
+  if (xt::amin(src_pixels_per_meter)() > 1.0 / meters_per_pixel)
   {
-    float sigma = (factor - 1) / 2;
-    size_t kernel_size = static_cast<size_t>(std::ceil(sigma * 2));
-    if (kernel_size % 2 == 0)
-    {
-      kernel_size++;
-    }
-    if (kernel_size > 1)
-    {
-      cv::GaussianBlur(src_image, src_image, cv::Size(kernel_size, kernel_size), sigma, sigma);
-    }
+    double sigma = (xt::amin(src_pixels_per_meter)() * meters_per_pixel - 1) / 2;
+    size_t kernel_size = static_cast<size_t>(std::ceil(sigma) * 4) + 1;
+    cv::GaussianBlur(src_image, src_image, cv::Size(kernel_size, kernel_size), sigma, sigma);
   }
 
   // Sample dest image
@@ -236,7 +227,7 @@ cv::Mat load_metric(TileLoader& tileloader, xti::vec2d latlon, float bearing, fl
     }
   }
   cv::Mat dest_image;
-  cv::remap(src_image, dest_image, map_x, map_y, cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
+  cv::remap(src_image, dest_image, map_x, map_y, cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0)); // BORDER_REPLICATE
 
   return dest_image;
 }

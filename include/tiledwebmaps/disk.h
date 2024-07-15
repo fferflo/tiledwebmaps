@@ -255,9 +255,10 @@ public:
       std::filesystem::create_directories(parent_path);
     }
 
-    cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+    cv::Mat image_bgr;
+    cv::cvtColor(image, image_bgr, cv::COLOR_RGB2BGR);
 
-    if (!cv::imwrite(path.string(), image))
+    if (!cv::imwrite(path.string(), image_bgr))
     {
       throw WriteFileException(path);
     }
