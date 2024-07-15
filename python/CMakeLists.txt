@@ -2,7 +2,6 @@ add_subdirectory(backend)
 
 execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/tiledwebmaps)
 execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/tiledwebmaps/__init__.py ${CMAKE_CURRENT_BINARY_DIR}/tiledwebmaps/__init__.py)
-execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/tiledwebmaps/config.py ${CMAKE_CURRENT_BINARY_DIR}/tiledwebmaps/config.py)
 execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/tiledwebmaps/geo.py ${CMAKE_CURRENT_BINARY_DIR}/tiledwebmaps/geo.py)
 execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/tiledwebmaps/presets.py ${CMAKE_CURRENT_BINARY_DIR}/tiledwebmaps/presets.py)
 execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/tiledwebmaps/util.py ${CMAKE_CURRENT_BINARY_DIR}/tiledwebmaps/util.py)
