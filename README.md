@@ -77,10 +77,13 @@ Not all tile providers allow caching or storing tiles on disk! Please check the 
 ```bash
 # Example for download_massgis, replace with download_{openbb|opendc|opennrw|opensaxony|nconemap} for other regions
 
-# 1. Download script
+# 1. Install additional dependencies required by the download scripts:
+pip install tiledwebmaps[scripts]
+
+# 2. Download script
 wget https://github.com/fferflo/tiledwebmaps/blob/master/python/scripts/download_massgis.py
 
-# 2. Run script
+# 3. Run script
 python download_massgis.py --path PATH_TO_DOWNLOAD_FOLDER --shape TILESIZE
 ```
 
