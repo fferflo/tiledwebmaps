@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name="tiledwebmaps",
-    version="0.1.3",
+    version="0.2.0",
     description="A lightweight library for retrieving map images from a tile provider with custom resolution, location and bearing.",
     author="Florian Fervers",
     author_email="florian.fervers@gmail.com",
