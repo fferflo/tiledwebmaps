@@ -31,18 +31,18 @@ if not os.path.exists(download_path):
 
 print("Extracting...")
 twm.util.extract(file, download_path)
-twm.util.run(f"gdal_retile.py -ps 1000 1000 -targetDir {download_path} {download_path}/DCOCTO-2021.jp2")
+twm.util.run(f"gdal_retile.py -ps 10000 10000 -targetDir {download_path} {download_path}/DCOCTO-2021.jp2")
 
 if args.shape is None:
     partition = 1
 else:
-    partition = 1000 // args.shape
-    if partition * args.shape != 1000:
-        print("--shape must be a divisor of 1000")
+    partition = 10000 // args.shape
+    if partition * args.shape != 10000:
+        print("--shape must be a divisor of 10000")
         sys.exit(-1)
 
-shape = (1000 // partition, 1000 // partition)
-tile_shape_crs = [80.0 / partition, 80.0 / partition]
+shape = (10000 // partition, 10000 // partition)
+tile_shape_crs = [800.0 / partition, 800.0 / partition]
 origin_crs = [800 * 0.75, 800 * 0.25]
 
 layout = twm.Layout(
