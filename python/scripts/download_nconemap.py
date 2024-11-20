@@ -176,11 +176,17 @@ pipe = areas
 pipe = pl.thread.mutex(pipe)
 
 def run_docker(cmd):
-    if os.system(f"docker run -ti --rm -v {download_path}:/data klokantech/gdal {cmd} > /dev/null") != 0:
+    cmd2 = f"docker run -ti --rm -v {download_path}:/data klokantech/gdal {cmd}"
+    if args.workers > 1:
+        cmd2 += " > /dev/null"
+    if os.system(cmd2) != 0:
         raise Exception(f"Error running command: {cmd}")
 
 def run(cmd):
-    if os.system(f"{cmd} > /dev/null") != 0:
+    cmd2 = cmd
+    if args.workers > 1:
+        cmd2 += " > /dev/null"
+    if os.system(cmd2) != 0:
         raise Exception(f"Error running command: {cmd}")
 
 lock1 = multiprocessing.Lock()
@@ -252,10 +258,23 @@ def process(area):
                     with lock2:
                         if not os.path.isdir(path):
                             os.makedirs(path)
+
+                if not (image.shape[0] == image.shape[1] and image.shape[0] == args.shape):
+                    assert image.shape[0] <= args.shape and image.shape[1] <= args.shape
+                    pad_top = 0
+                    pad_bottom = args.shape - image.shape[0]
+                    pad_left = 0
+                    pad_right = args.shape - image.shape[1]
+                    image = cv2.copyMakeBorder(image, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_REPLICATE)
+                    assert image.shape[0] == image.shape[1] and image.shape[0] == args.shape
+
                 imageio.imwrite(os.path.join(path, f"{tile[1]}.jpg"), image, quality=100)
 
         os.remove(file)
-pipe = pl.process.map(pipe, process, workers=args.workers)
+if args.workers > 1:
+    pipe = pl.process.map(pipe, process, workers=args.workers)
+else:
+    pipe = pl.map(pipe, process)
 
 for _ in tqdm.tqdm(pipe, desc="Downloading areas", total=len(areas)):
     pass
